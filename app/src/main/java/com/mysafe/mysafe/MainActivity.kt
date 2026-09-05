@@ -80,7 +80,7 @@ class MainActivity : AppCompatActivity() {
         initViews()
         checkPerms()
         setupMap()
-        setupFusedLocation()  // ✅ Google Location Services !
+        setupFusedLocation()
 
         val filter = IntentFilter(MySafeAgentService.SMS_RECEIVED)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -126,15 +126,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ✅ NOUVEAU : Configuration Google Fused Location
     private fun setupFusedLocation() {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         
         locationRequest = LocationRequest.create().apply {
-            interval = 5000          // Mise à jour toutes les 5s
-            fastestInterval = 2000   // Jusqu'à toutes les 2s
-            priority = LocationRequest.PRIORITY_HIGH_ACCURACY  // ✅ Meilleure précision
-            smallestDisplacement = 5f  // Mise à jour si déplacement de 5m
+            interval = 5000
+            fastestInterval = 2000
+            priority = LocationRequest.PRIORITY_HIGH_ACCURACY
+            smallestDisplacement = 5f
         }
 
         locationCallback = object : LocationCallback() {
@@ -146,7 +145,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ✅ OBTENIR POSITION INSTANTANÉE (comme les autres apps !)
     private fun getInstantPosition() {
         addLog("🧪 === RÉCUPÉRATION POSITION (GOOGLE) ===")
         
@@ -158,15 +156,15 @@ class MainActivity : AppCompatActivity() {
 
         addLog("⏳ Récupération de la position...")
         
-        // ✅ D'abord : la DERNIÈRE position connue (instantané !)
+        // ✅ Méthode 1 : Dernière position connue (instantanée)
         fusedLocationClient.lastLocation
             .addOnSuccessListener { location: Location? ->
                 if (location != null && isLocationValid(location)) {
                     addLog("✅ Position trouvée (dernière connue) !")
                     handleNewLocation(location)
                 } else {
-                    addLog("⚠️ Position connue trop ancienne — demande position fraîche...")
-                    requestFreshLocation()
+                    addLog("⚠️ Position connue trop ancienne — demande mise à jour...")
+                    requestLocationUpdate()
                 }
             }
             .addOnFailureListener { e ->
@@ -175,35 +173,27 @@ class MainActivity : AppCompatActivity() {
             }
     }
 
-    // ✅ Demander une position FRAÎCHE
-    private fun requestFreshLocation() {
+    // ✅ Méthode 2 : Demander une nouvelle position (compatible toutes versions)
+    private fun requestLocationUpdate() {
         if (!hasLocationPermission()) return
         
-        fusedLocationClient.getCurrentLocation(
-            LocationRequest.create().apply {
-                priority = LocationRequest.PRIORITY_HIGH_ACCURACY
-                numUpdates = 1
-                expirationTime = 15000  // 15s max
-            },
-            null
-        ).addOnSuccessListener { location: Location? ->
-            if (location != null && isLocationValid(location)) {
-                addLog("✅ Position fraîche obtenue !")
-                handleNewLocation(location)
-            } else {
-                addLog("❌ Impossible d'obtenir une position")
-                addLog("💡 Vérifie : GPS ON + Données mobiles/Wi-Fi ON")
-                Toast.makeText(this, "❌ Position introuvable", Toast.LENGTH_LONG).show()
-            }
-        }
+        // Arrêter toute mise à jour en cours
+        locationCallback?.let { fusedLocationClient.removeLocationUpdates(it) }
+        
+        // Demander une seule mise à jour
+        val request = locationRequest.copy()
+        request.numUpdates = 1
+        request.expirationTime = 15000
+        
+        fusedLocationClient.requestLocationUpdates(request, locationCallback!!, mainLooper)
+        addLog("⏳ Demande de position en cours...")
+        Toast.makeText(this, "⏳ Recherche position...", Toast.LENGTH_SHORT).show()
     }
 
-    // ✅ Vérifier que la position n'est pas (0,0) ou trop vieille
     private fun isLocationValid(loc: Location): Boolean {
         val isZero = loc.latitude == 0.0 && loc.longitude == 0.0
         val age = System.currentTimeMillis() - loc.time
-        val isTooOld = age > 24 * 60 * 60 * 1000  // > 24h
-        
+        val isTooOld = age > 24 * 60 * 60 * 1000
         return !isZero && !isTooOld
     }
 
@@ -213,10 +203,7 @@ class MainActivity : AppCompatActivity() {
         
         val point = GeoPoint(loc.latitude, loc.longitude)
         
-        // Supprimer ancien marqueur
         userMarker?.let { mapView.overlays.remove(it) }
-        
-        // Ajouter nouveau marqueur
         userMarker = Marker(mapView).apply {
             position = point
             title = "📍 Tu es ici !"
@@ -224,10 +211,11 @@ class MainActivity : AppCompatActivity() {
             icon = ContextCompat.getDrawable(this@MainActivity, android.R.drawable.ic_menu_mylocation)
         }
         mapView.overlays.add(userMarker)
-        
-        // Centrer la carte
         mapView.controller.animateTo(point)
         mapView.invalidate()
+        
+        // Nettoyer les mises à jour ponctuelles
+        locationCallback?.let { fusedLocationClient.removeLocationUpdates(it) }
         
         Toast.makeText(this, "📍 Position trouvée !", Toast.LENGTH_SHORT).show()
     }
@@ -381,8 +369,6 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(smsReceiver)
-        locationCallback?.let { callback ->
-            fusedLocationClient.removeLocationUpdates(callback)
-        }
+        locationCallback?.let { fusedLocationClient.removeLocationUpdates(it) }
     }
 }

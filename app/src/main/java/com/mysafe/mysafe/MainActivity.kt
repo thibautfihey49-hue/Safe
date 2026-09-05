@@ -13,6 +13,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import org.osmdroid.config.Configuration
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
@@ -41,8 +42,7 @@ class MainActivity : AppCompatActivity() {
         Manifest.permission.ACCESS_BACKGROUND_LOCATION,
         Manifest.permission.FOREGROUND_SERVICE,
         Manifest.permission.POST_NOTIFICATIONS,
-        Manifest.permission.SYSTEM_ALERT_WINDOW,
-        Manifest.permission.RECEIVE_BOOT_COMPLETED
+        Manifest.permission.SYSTEM_ALERT_WINDOW
     )
 
     private val smsReceiver = object : BroadcastReceiver() {
@@ -61,8 +61,13 @@ class MainActivity : AppCompatActivity() {
         checkPerms()
         setupMap()
 
-        // Enregistrer le récepteur pour les réponses SMS
-        registerReceiver(smsReceiver, IntentFilter("com.mysafe.mysafe.SMS_RECEIVED"))
+        // ✅ Correction : Ajout du drapeau RECEIVER_NOT_EXPORTED pour Android 13+
+        val filter = IntentFilter(MySafeAgentService.SMS_RECEIVED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(smsReceiver, filter, RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(smsReceiver, filter)
+        }
     }
 
     private fun initViews() {
@@ -105,11 +110,7 @@ class MainActivity : AppCompatActivity() {
             putExtra("sender_number", num)
             putExtra("command", cmd)
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(svc)
-        } else {
-            startService(svc)
-        }
+        ContextCompat.startForegroundService(this, svc)
         Toast.makeText(this, "✅ Commande envoyée : $cmd", Toast.LENGTH_SHORT).show()
     }
 
@@ -141,7 +142,6 @@ class MainActivity : AppCompatActivity() {
         val log = "📍 $time\n   Lat: $lat\n   Lon: $lon\n   Alt: $alt m\n\n"
         tvPositions.text = "$log${tvPositions.text}"
 
-        // Ajouter marqueur sur la carte
         val point = GeoPoint(lat, lon)
         val marker = Marker(mapView).apply {
             position = point
@@ -181,9 +181,6 @@ class MainActivity : AppCompatActivity() {
         }.toTypedArray()
         if (missing.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, missing, 1001)
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-            // Suggérer l'autorisation mais ne pas bloquer
         }
     }
 

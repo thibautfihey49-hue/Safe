@@ -3,42 +3,42 @@ package com.mysafe.mysafe
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.os.Build
+import android.os.Bundle
 import android.telephony.SmsMessage
+import android.util.Log
 
 class DataSMSReceiver : BroadcastReceiver() {
-    override fun onReceive(context: Context?, intent: Intent?) {
-        context ?: return
-        intent ?: return
+    companion object {
+        private const val TAG = "DataSMSReceiver"
+    }
 
-        if ("android.provider.Telephony.SMS_RECEIVED" != intent.action) return
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != "android.provider.Telephony.SMS_RECEIVED") return
 
         val bundle = intent.extras ?: return
-        val pdus = bundle["pdus"] as? Array<*> ?: return
-        val messages = pdus.map { pdu ->
-            @Suppress("DEPRECATION")
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
-                SmsMessage.createFromPdu(pdu as ByteArray, bundle.getString("format"))
-            else SmsMessage.createFromPdu(pdu as ByteArray)
-        }
+        val pdus = bundle.get("pdus") as? Array<*> ?: return
+        val format = bundle.getString("format")
 
-        val sender = messages.first().originatingAddress ?: return
-        val body = messages.joinToString("") { it.messageBody }.trim()
+        for (pdu in pdus) {
+            val msg = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                SmsMessage.createFromPdu(pdu as ByteArray, format)
+            } else {
+                @Suppress("DEPRECATION")
+                SmsMessage.createFromPdu(pdu as ByteArray)
+            }
 
-        if (!body.startsWith("!!")) return
+            val messageText = msg.messageBody ?: continue
+            val sender = msg.originatingAddress ?: "?"
 
-        abortBroadcast()
+            Log.d(TAG, "📩 SMS reçu de $sender : $messageText")
 
-        // Envoyer au service pour traitement + réponse
-        val svc = Intent(context, MySafeAgentService::class.java).apply {
-            action = MySafeAgentService.ACTION_PROCESS_COMMAND
-            putExtra("sender_number", sender)
-            putExtra("command", body)
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.startForegroundService(svc)
-        } else {
-            context.startService(svc)
+            // ✅ Transmettre à MainActivity via broadcast
+            val forwardIntent = Intent(MySafeAgentService.SMS_RECEIVED).apply {
+                setPackage(context.packageName)
+                putExtra("sms_message", messageText)
+                putExtra("sender_number", sender)
+            }
+            context.sendBroadcast(forwardIntent)
         }
     }
 }

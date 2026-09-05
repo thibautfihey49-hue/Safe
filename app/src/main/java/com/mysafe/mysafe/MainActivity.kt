@@ -40,10 +40,12 @@ class MainActivity : AppCompatActivity() {
         Manifest.permission.ACCESS_NETWORK_STATE,
         Manifest.permission.SEND_SMS,
         Manifest.permission.RECEIVE_SMS,
+        Manifest.permission.READ_SMS,
         Manifest.permission.ACCESS_FINE_LOCATION,
         Manifest.permission.ACCESS_COARSE_LOCATION,
         Manifest.permission.ACCESS_BACKGROUND_LOCATION,
         Manifest.permission.FOREGROUND_SERVICE,
+        Manifest.permission.FOREGROUND_SERVICE_LOCATION,
         Manifest.permission.POST_NOTIFICATIONS,
         Manifest.permission.SYSTEM_ALERT_WINDOW
     )
@@ -51,6 +53,7 @@ class MainActivity : AppCompatActivity() {
     private val smsReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             intent?.getStringExtra("sms_message")?.let { msg ->
+                android.util.Log.d("MainActivity", "📨 Message reçu dans l'activité : $msg")
                 runOnUiThread { handleIncomingMessage(msg) }
             }
         }
@@ -70,6 +73,8 @@ class MainActivity : AppCompatActivity() {
         } else {
             registerReceiver(smsReceiver, filter)
         }
+
+        addLog("✅ Appli prête — entrez un numéro et cliquez sur 📍 Position")
     }
 
     private fun initViews() {
@@ -90,22 +95,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupMap() {
-        // ✅ Configuration complète OSMdroid
         Configuration.getInstance().apply {
             osmdroidBasePath = File(getExternalFilesDir(null), "osmdroid")
             osmdroidTileCache = File(getExternalFilesDir(null), "osmdroid/tiles")
-            userAgentValue = "MySafe-App" // ✅ Obligatoire pour OpenStreetMap
+            userAgentValue = "MySafe-App"
         }
 
         mapView.apply {
-            setTileSource(TileSourceFactory.MAPNIK) // ✅ Source de tuiles OSM
+            setTileSource(TileSourceFactory.MAPNIK)
             setMultiTouchControls(true)
             controller.setZoom(15.0)
             controller.setCenter(GeoPoint(47.4728, -0.5416)) // Angers
             visibility = android.view.View.VISIBLE
         }
 
-        Toast.makeText(this, "🗺️ Carte en chargement... Vérifiez votre connexion Internet", Toast.LENGTH_LONG).show()
+        Toast.makeText(this, "🗺️ Carte initialisée", Toast.LENGTH_SHORT).show()
     }
 
     private fun sendCommand(cmd: String) {
@@ -120,29 +124,45 @@ class MainActivity : AppCompatActivity() {
             putExtra("command", cmd)
         }
         ContextCompat.startForegroundService(this, svc)
-        Toast.makeText(this, "✅ Commande envoyée : $cmd", Toast.LENGTH_SHORT).show()
+        addLog("📤 Commande envoyée à $num : $cmd")
+        Toast.makeText(this, "✅ Commande envoyée", Toast.LENGTH_SHORT).show()
     }
 
     private fun handleIncomingMessage(msg: String) {
+        addLog("📩 Réponse reçue : $msg")
+
         when {
             msg.startsWith("!!OK-") -> {
                 Toast.makeText(this, "✅ $msg", Toast.LENGTH_SHORT).show()
-                addLog("✅ $msg")
+            }
+            msg.startsWith("!!ERREUR-") -> {
+                Toast.makeText(this, "⚠️ $msg", Toast.LENGTH_LONG).show()
             }
             msg.startsWith("!!") && msg.contains(",") -> {
-                val parts = msg.removePrefix("!!").split(",")
+                val data = msg.removePrefix("!!").trim()
+                val parts = data.split(",")
+                android.util.Log.d("MainActivity", "Parsing : ${parts.size} parties -> $parts")
+
                 if (parts.size >= 2) {
                     try {
-                        val lat = parts[0].toDouble()
-                        val lon = parts[1].toDouble()
+                        val lat = parts[0].toDoubleOrNull()
+                        val lon = parts[1].toDoubleOrNull()
                         val alt = if (parts.size > 2) parts[2] else "?"
-                        addPosition(lat, lon, alt)
-                    } catch (e: NumberFormatException) {
-                        addLog("📩 $msg")
+
+                        if (lat != null && lon != null) {
+                            addPosition(lat, lon, alt ?: "?")
+                            Toast.makeText(this, "📍 Position ajoutée !", Toast.LENGTH_SHORT).show()
+                        } else {
+                            addLog("❌ Coordonnés invalides : lat=$lat, lon=$lon")
+                        }
+                    } catch (e: Exception) {
+                        addLog("❌ Erreur parsing : ${e.message}")
                     }
+                } else {
+                    addLog("❌ Format invalide : $msg")
                 }
             }
-            else -> addLog("📩 $msg")
+            else -> addLog("📩 Message : $msg")
         }
     }
 
@@ -160,6 +180,8 @@ class MainActivity : AppCompatActivity() {
         mapView.overlays.add(marker)
         mapView.controller.animateTo(point)
         mapView.invalidate()
+
+        android.util.Log.d("MainActivity", "✅ Marqueur ajouté : $lat, $lon")
     }
 
     private fun addLog(text: String) {
@@ -170,8 +192,9 @@ class MainActivity : AppCompatActivity() {
     private fun clearMap() {
         mapView.overlays.clear()
         mapView.invalidate()
-        tvPositions.text = "Aucune position..."
-        Toast.makeText(this, "🗑️ Carte et historique effacés", Toast.LENGTH_SHORT).show()
+        tvPositions.text = ""
+        addLog("🗑️ Carte et historique effacés")
+        Toast.makeText(this, "🗑️ Effacé", Toast.LENGTH_SHORT).show()
     }
 
     private fun openFloatingMap() {

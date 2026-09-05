@@ -19,6 +19,8 @@ class SmsReceiver : BroadcastReceiver() {
         val pdus = bundle.get("pdus") as? Array<*> ?: return
         
         val messageBody = StringBuilder()
+        var senderNumber = ""
+        
         for (pdu in pdus) {
             val sms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 SmsMessage.createFromPdu(pdu as ByteArray, bundle.getString("format"))
@@ -27,24 +29,25 @@ class SmsReceiver : BroadcastReceiver() {
                 SmsMessage.createFromPdu(pdu as ByteArray)
             }
             messageBody.append(sms.messageBody)
+            if (senderNumber.isEmpty()) senderNumber = sms.originatingAddress ?: ""
         }
         
         val message = messageBody.toString().trim()
-        Log.d(TAG, "📩 SMS reçu: $message")
+        Log.d(TAG, "📩 SMS BRUT reçu de $senderNumber : [$message]")
 
         // ✅ TOUT CE QUI COMMENCE PAR !! = RÉPONSE DE POSITION
         if (message.startsWith("!!")) {
-            Log.d(TAG, "✅ Commande MySafe détectée — transmission à l'UI !")
+            Log.d(TAG, "✅ Réponse de position détectée !")
             
-            // ⚡ DIFFUSER LA RÉPONSE DIRECTEMENT À L'ACTIVITÉ
-            val uiIntent = Intent(MySafeAgentService.SMS_RECEIVED)
-            uiIntent.setPackage(context?.packageName) // CIBLE NOTRE APPLI SEULEMENT
+            // ⚡ DIFFUSER LA RÉPONSE À L'UI — avec le bon nom d'action !
+            val uiIntent = Intent("com.mysafe.mysafe.SMS_RECEIVED")
+            uiIntent.setPackage(context?.packageName)
             uiIntent.putExtra("sms_message", message)
             context?.sendBroadcast(uiIntent)
             
-            Log.d(TAG, "📡 Réponse envoyée à l'activité !")
+            Log.d(TAG, "📡 Réponse envoyée à l'UI: $message")
             
-            // Essayer de cacher le SMS — si le système l'autorise
+            // Essayer de cacher le SMS
             try { abortBroadcast() } catch (e: Exception) {}
         }
     }

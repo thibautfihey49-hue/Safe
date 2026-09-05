@@ -65,9 +65,13 @@ class MainActivity : AppCompatActivity() {
 
     private val smsResponseReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            val msg = intent?.getStringExtra("sms_message") ?: return
-            Log.d("MySafe-UI", "📥 Réponse reçue dans l'UI: $msg")
-            runOnUiThread { handleIncomingMessage(msg) }
+            val msg = intent?.getStringExtra("sms_message")
+            Log.d("MySafe-UI", "📥 Récepteur appelé ! Message reçu: [$msg]")
+            if (msg != null) {
+                runOnUiThread { handleIncomingMessage(msg) }
+            } else {
+                Log.d("MySafe-UI", "⚠️ Message NULL reçu !")
+            }
         }
     }
 
@@ -79,8 +83,8 @@ class MainActivity : AppCompatActivity() {
         setupMap()
         setupFusedLocation()
         
-        // ✅ CORRECTION ICI : Ajouter le flag pour Android 13+
-        val intentFilter = IntentFilter(MySafeAgentService.SMS_RECEIVED)
+        // ✅ LE NOM DOIT ÊTRE IDENTIQUE À CELUI DU SmsReceiver !
+        val intentFilter = IntentFilter("com.mysafe.mysafe.SMS_RECEIVED")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(smsResponseReceiver, intentFilter, Context.RECEIVER_NOT_EXPORTED)
         } else {
@@ -253,6 +257,8 @@ class MainActivity : AppCompatActivity() {
             } else {
                 addLog("⚠️ Coordonnées invalides !")
             }
+        } else {
+            addLog("⚠️ Format de réponse invalide !")
         }
     }
 

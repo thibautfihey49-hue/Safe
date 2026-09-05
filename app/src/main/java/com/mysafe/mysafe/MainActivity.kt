@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
@@ -62,7 +63,6 @@ class MainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
     }.toTypedArray()
 
-    // ✅ RÉCEPTEUR POUR LES RÉPONSES DE POSITION
     private val smsResponseReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val msg = intent?.getStringExtra("sms_message") ?: return
@@ -79,7 +79,6 @@ class MainActivity : AppCompatActivity() {
         setupMap()
         setupFusedLocation()
         
-        // ✅ ENREGISTRER LE RÉCEPTEUR SANS RESTRICTION DE DRAPEAU
         registerReceiver(
             smsResponseReceiver,
             IntentFilter(MySafeAgentService.SMS_RECEIVED)
@@ -260,13 +259,11 @@ class MainActivity : AppCompatActivity() {
         
         val point = GeoPoint(lat, lon)
         
-        // Supprimer ancien marqueur
         remoteMarker?.let { 
             mapView.overlays.remove(it)
             addLog("🗑️ Ancien marqueur supprimé")
         }
         
-        // Créer nouveau marqueur ROUGE
         remoteMarker = Marker(mapView).apply {
             position = point
             title = "🔴 LUI — $time"
@@ -274,13 +271,11 @@ class MainActivity : AppCompatActivity() {
             icon = ContextCompat.getDrawable(this@MainActivity, android.R.drawable.ic_menu_compass)
         }
         
-        // Ajouter à la carte
         remoteMarker?.let {
             mapView.overlays.add(it)
             addLog("✅ MARQUEUR ROUGE AJOUTÉ ! Total: ${mapView.overlays.size}")
         }
         
-        // Centrer la carte
         mapView.controller.animateTo(point)
         mapView.invalidate()
         

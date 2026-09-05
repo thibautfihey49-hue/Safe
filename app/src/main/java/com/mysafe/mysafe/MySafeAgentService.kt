@@ -66,7 +66,6 @@ class MySafeAgentService : Service() {
             .setContentText("")
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setOngoing(true)
-            .setSilent(true)
             .setPriority(Notification.PRIORITY_MIN)
             .build()
         startForeground(NOTIF_ID, notif)

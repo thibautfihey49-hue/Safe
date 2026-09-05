@@ -123,6 +123,12 @@ class MySafeAgentService : Service() {
         Log.d(TAG, "📥 Commande reçue de $sender : $command — traitement silencieux 🤫")
         targetNumber = sender
         
+        // ✅ DIFFUSER LA RÉPONSE À L'UI POUR AFFICHAGE SUR LA CARTE !
+        val uiIntent = Intent(SMS_RECEIVED)
+        uiIntent.putExtra("sms_message", command)
+        sendBroadcast(uiIntent)
+        Log.d(TAG, "📡 Réponse envoyée à l'UI pour affichage sur la carte !")
+        
         when (command.uppercase()) {
             "!!POSITION" -> sendMyPositionBack(sender)
             "!!DEMARRER" -> startTrackingMode(sender)
@@ -142,7 +148,7 @@ class MySafeAgentService : Service() {
             if (loc != null && loc.latitude != 0.0 && loc.longitude != 0.0) {
                 val msg = "!!${loc.latitude},${loc.longitude},${loc.altitude.toInt()}"
                 smsManager.sendTextMessage(to, null, msg, null, null)
-                Log.d(TAG, "✅ Position renvoyée silencieusement 🤫")
+                Log.d(TAG, "✅ Position renvoyée silencieusement : $msg")
             } else {
                 Log.d(TAG, "⚠️ Pas de position disponible")
             }
@@ -168,7 +174,7 @@ class MySafeAgentService : Service() {
         val msg = "!!${loc.latitude},${loc.longitude},${loc.altitude.toInt()}"
         try {
             smsManager.sendTextMessage(targetNumber, null, msg, null, null)
-            Log.d(TAG, "📤 Position envoyée silencieusement 🤫")
+            Log.d(TAG, "📤 Position envoyée silencieusement : $msg")
         } catch (e: Exception) {
             Log.e(TAG, "❌ Échec envoi position : ${e.message}")
         }

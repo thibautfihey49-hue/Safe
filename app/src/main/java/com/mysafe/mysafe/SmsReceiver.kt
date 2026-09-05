@@ -31,22 +31,23 @@ class SmsReceiver : BroadcastReceiver() {
         
         val message = messageBody.toString()
         
-        // Intercepter SEULEMENT les commandes MySafe — les autres SMS passent normalement
+        // ✅ ABORT EN PREMIER — LE SMS N'APPARAÎT JAMAIS DANS LA CONVERSATION !
         if (message.startsWith("!!")) {
-            Log.d(TAG, "📩 Commande MySafe interceptée — invisible dans la messagerie 🤫")
-            abortBroadcast() // ❌ Le SMS N'APPARAÎT PAS dans la conversation !
+            Log.d(TAG, "📩 Commande MySafe interceptée — 100% invisible 🤫")
+            abortBroadcast() // ❌ ANNULER AFFICHAGE IMMÉDIATEMENT !
+            
+            val sender = pdus.firstOrNull()?.let {
+                val sms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    SmsMessage.createFromPdu(it as ByteArray, bundle.getString("format"))
+                } else {
+                    @Suppress("DEPRECATION")
+                    SmsMessage.createFromPdu(it as ByteArray)
+                }
+                sms.originatingAddress
+            } ?: ""
             
             val serviceIntent = Intent(context, MySafeAgentService::class.java).apply {
                 action = MySafeAgentService.ACTION_PROCESS_COMMAND
-                val sender = pdus.firstOrNull()?.let {
-                    val sms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        SmsMessage.createFromPdu(it as ByteArray, bundle.getString("format"))
-                    } else {
-                        @Suppress("DEPRECATION")
-                        SmsMessage.createFromPdu(it as ByteArray)
-                    }
-                    sms.originatingAddress
-                } ?: ""
                 putExtra("sender_number", sender)
                 putExtra("command", message)
             }

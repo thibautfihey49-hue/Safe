@@ -220,11 +220,16 @@ class MainActivity : AppCompatActivity() {
         addLog("📩 REÇU : $msg")
         when {
             msg.startsWith("!!") && msg.contains(",") -> {
-                val p = msg.removePrefix("!!").split(",")
-                val lat = p[0].toDoubleOrNull()
-                val lon = p[1].toDoubleOrNull()
+                val cleanMsg = msg.removePrefix("!!")
+                val parts = cleanMsg.split(",")
+                val lat = parts.getOrNull(0)?.toDoubleOrNull()
+                val lon = parts.getOrNull(1)?.toDoubleOrNull()
+                val alt = parts.getOrNull(2) ?: "?"
+                
                 if (lat != null && lon != null && !(lat == 0.0 && lon == 0.0)) {
-                    showRemotePosition(lat, lon, p.getOrNull(2) ?: "?")
+                    showRemotePosition(lat, lon, alt)
+                } else {
+                    addLog("⚠️ Coordonnées invalides : lat=$lat, lon=$lon")
                 }
             }
             msg.startsWith("!!OK-") -> Toast.makeText(this, "✅ $msg", Toast.LENGTH_SHORT).show()
@@ -235,18 +240,33 @@ class MainActivity : AppCompatActivity() {
     private fun showRemotePosition(lat: Double, lon: Double, alt: String) {
         val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
         addLog("🔴 L'AUTRE : $lat, $lon — Alt: $alt m")
+        
         val point = GeoPoint(lat, lon)
         
-        remoteMarker?.let { mapView.overlays.remove(it) }
+        // Supprimer l'ancien marqueur s'il existe
+        remoteMarker?.let { 
+            mapView.overlays.remove(it)
+            addLog("🗑️ Ancien marqueur supprimé")
+        }
+        
+        // Créer le NOUVEAU marqueur
         remoteMarker = Marker(mapView).apply {
             position = point
             title = "🔴 LUI — $time"
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
             icon = ContextCompat.getDrawable(this@MainActivity, android.R.drawable.ic_menu_compass)
         }
-        mapView.overlays.add(remoteMarker)
+        
+        // Ajouter à la carte
+        remoteMarker?.let {
+            mapView.overlays.add(it)
+            addLog("✅ Marqueur ajouté sur la carte !")
+        }
+        
+        // Déplacer la caméra
         mapView.controller.animateTo(point)
         mapView.invalidate()
+        
         Toast.makeText(this, "🔴 Position de l'autre reçue !", Toast.LENGTH_LONG).show()
     }
 

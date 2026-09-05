@@ -5,7 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
-import android.content.Intent
+import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
@@ -13,6 +13,7 @@ import android.os.Build
 import android.os.Bundle
 import android.telephony.SmsManager
 import android.util.Log
+import androidx.core.content.ContextCompat
 
 class MySafeAgentService : Service() {
     companion object {
@@ -47,7 +48,24 @@ class MySafeAgentService : Service() {
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         smsManager = SmsManager.getDefault()
         createSilentNotificationChannel()
-        startForeground(NOTIF_ID, buildSilentNotification())
+        
+        // ✅ Vérifier les permissions AVANT de passer en foreground
+        if (hasLocationPermission()) {
+            startForeground(NOTIF_ID, buildSilentNotification())
+        } else {
+            Log.w(TAG, "Permission localisation manquante — service lancé sans foreground")
+        }
+    }
+
+    private fun hasLocationPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            this,
+            android.Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED ||
+        ContextCompat.checkSelfPermission(
+            this,
+            android.Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -63,6 +81,12 @@ class MySafeAgentService : Service() {
     }
 
     private fun handleCommand(command: String, sender: String) {
+        if (!hasLocationPermission()) {
+            sendDataSMS(sender, "!!ERREUR-AUTORISATION: Accorde la localisation d'abord")
+            broadcastMessage("!!ERREUR-AUTORISATION: Accorde la localisation d'abord")
+            return
+        }
+
         when (command.uppercase()) {
             "!!POSITION" -> sendSinglePosition(sender)
             "!!DEMARRER" -> startContinuousTracking(sender)

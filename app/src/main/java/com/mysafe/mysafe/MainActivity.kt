@@ -30,18 +30,19 @@ class MainActivity : AppCompatActivity() {
     private lateinit var mapView: MapView
     private lateinit var etTargetNumber: EditText
     private lateinit var tvPositions: TextView
-    private lateinit var btnPosition: Button
+    private lateinit var btnMyPosition: Button
+    private lateinit var btnGetHisPosition: Button
     private lateinit var btnDemarrer: Button
     private lateinit var btnStop: Button
     private lateinit var btnFloatingMap: Button
     private lateinit var btnClearHistory: Button
-    private lateinit var btnTestDirect: Button
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationRequest: LocationRequest
     private var locationCallback: LocationCallback? = null
     private var userMarker: Marker? = null
-    private var myPhoneNumber: String = ""
+    private var remoteMarker: Marker? = null
+    private var targetPhoneNumber: String = ""
     private val DEFAULT_ANGERS = GeoPoint(47.4728, -0.5416)
 
     private val PERMS = mutableListOf(
@@ -55,7 +56,8 @@ class MainActivity : AppCompatActivity() {
         Manifest.permission.ACCESS_BACKGROUND_LOCATION,
         Manifest.permission.FOREGROUND_SERVICE,
         Manifest.permission.FOREGROUND_SERVICE_LOCATION,
-        Manifest.permission.SYSTEM_ALERT_WINDOW
+        Manifest.permission.SYSTEM_ALERT_WINDOW,
+        Manifest.permission.RECEIVE_BOOT_COMPLETED
     ).apply {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
     }.toTypedArray()
@@ -74,25 +76,27 @@ class MainActivity : AppCompatActivity() {
         setupMap()
         setupFusedLocation()
         registerReceiver(smsReceiver, IntentFilter(MySafeAgentService.SMS_RECEIVED), if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) RECEIVER_NOT_EXPORTED else 0)
-        addLog("✅ MySafe prête — Google Location actif !")
+        addLog("✅ MySafe PRÊT — Mode discret ACTIF 🤫")
+        addLog("📍 🟢 MOI = marqueur vert | 🔴 LUI = marqueur rouge")
     }
 
     private fun initViews() {
         mapView = findViewById(R.id.mapView)
         etTargetNumber = findViewById(R.id.etTargetNumber)
         tvPositions = findViewById(R.id.tvPositions)
-        btnPosition = findViewById(R.id.btnPosition)
+        btnMyPosition = findViewById(R.id.btnMyPosition)
+        btnGetHisPosition = findViewById(R.id.btnGetHisPosition)
         btnDemarrer = findViewById(R.id.btnDemarrer)
         btnStop = findViewById(R.id.btnStop)
         btnFloatingMap = findViewById(R.id.btnFloatingMap)
         btnClearHistory = findViewById(R.id.btnClearHistory)
-        btnTestDirect = findViewById(R.id.btnTestDirect)
-        btnPosition.setOnClickListener { sendCommand("!!POSITION") }
-        btnDemarrer.setOnClickListener { sendCommand("!!DEMARRER") }
-        btnStop.setOnClickListener { sendCommand("!!STOP") }
+
+        btnMyPosition.setOnClickListener { getMyPosition() }
+        btnGetHisPosition.setOnClickListener { askHisPosition() }
+        btnDemarrer.setOnClickListener { startTracking() }
+        btnStop.setOnClickListener { stopTracking() }
         btnFloatingMap.setOnClickListener { openFloatingMap() }
         btnClearHistory.setOnClickListener { clearMap() }
-        btnTestDirect.setOnClickListener { getInstantPosition() }
     }
 
     private fun setupMap() {
@@ -119,30 +123,73 @@ class MainActivity : AppCompatActivity() {
         }
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
-                result.lastLocation?.let { handleNewLocation(it) }
+                result.lastLocation?.let { showMyPosition(it) }
             }
         }
     }
 
-    private fun getInstantPosition() {
-        addLog("🧪 Récupération position...")
+    private fun getMyPosition() {
+        addLog("🧪 === MA POSITION ===")
         if (!hasLocationPermission()) {
             Toast.makeText(this, "❌ Autorise la localisation", Toast.LENGTH_LONG).show()
             return
         }
         fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
-            if (loc != null && isLocationValid(loc)) handleNewLocation(loc) else requestFreshLocation()
+            if (loc != null && isLocationValid(loc)) showMyPosition(loc) else requestFreshLocation()
         }.addOnFailureListener { requestFreshLocation() }
+    }
+
+    private fun askHisPosition() {
+        val num = etTargetNumber.text.toString().trim()
+        if (num.isEmpty()) {
+            Toast.makeText(this, "⚠️ Entre LE NUMÉRO DE L'AUTRE !", Toast.LENGTH_SHORT).show()
+            return
+        }
+        targetPhoneNumber = normalizeNumber(num)
+        addLog("📤 === DEMANDE SA POSITION ===")
+        addLog("📩 Envoi à : $targetPhoneNumber")
+        
+        val svc = Intent(this, MySafeAgentService::class.java).apply {
+            action = MySafeAgentService.ACTION_SEND_COMMAND
+            putExtra("target_number", targetPhoneNumber)
+            putExtra("command", "!!POSITION")
+        }
+        ContextCompat.startForegroundService(this, svc)
+        Toast.makeText(this, "📩 Demande envoyée ! Attends la réponse...", Toast.LENGTH_LONG).show()
+    }
+
+    private fun startTracking() {
+        val num = etTargetNumber.text.toString().trim()
+        if (num.isEmpty()) { Toast.makeText(this, "⚠️ Entre un numéro", Toast.LENGTH_SHORT).show(); return }
+        targetPhoneNumber = normalizeNumber(num)
+        addLog("📤 === SUIVI CONTINU ===")
+        val svc = Intent(this, MySafeAgentService::class.java).apply {
+            action = MySafeAgentService.ACTION_SEND_COMMAND
+            putExtra("target_number", targetPhoneNumber)
+            putExtra("command", "!!DEMARRER")
+        }
+        ContextCompat.startForegroundService(this, svc)
+        Toast.makeText(this, "✅ Suivi demandé !", Toast.LENGTH_LONG).show()
+    }
+
+    private fun stopTracking() {
+        val num = etTargetNumber.text.toString().trim()
+        if (num.isEmpty()) return
+        targetPhoneNumber = normalizeNumber(num)
+        addLog("📤 === ARRÊT SUIVI ===")
+        val svc = Intent(this, MySafeAgentService::class.java).apply {
+            action = MySafeAgentService.ACTION_SEND_COMMAND
+            putExtra("target_number", targetPhoneNumber)
+            putExtra("command", "!!STOP")
+        }
+        ContextCompat.startForegroundService(this, svc)
+        Toast.makeText(this, "✅ Suivi arrêté !", Toast.LENGTH_SHORT).show()
     }
 
     private fun requestFreshLocation() {
         if (!hasLocationPermission()) return
         locationCallback?.let { fusedLocationClient.removeLocationUpdates(it) }
-        val req = LocationRequest.create().apply {
-            numUpdates = 1
-            expirationTime = 15000
-            priority = LocationRequest.PRIORITY_HIGH_ACCURACY
-        }
+        val req = LocationRequest.create().apply { numUpdates = 1; expirationTime = 15000; priority = LocationRequest.PRIORITY_HIGH_ACCURACY }
         fusedLocationClient.requestLocationUpdates(req, locationCallback!!, mainLooper)
         Toast.makeText(this, "⏳ Recherche...", Toast.LENGTH_SHORT).show()
     }
@@ -153,13 +200,13 @@ class MainActivity : AppCompatActivity() {
         return !zero && age <= 86400000
     }
 
-    private fun handleNewLocation(loc: Location) {
-        addLog("📍 ${loc.latitude}, ${loc.longitude} — ${loc.accuracy.toInt()}m")
+    private fun showMyPosition(loc: Location) {
+        addLog("📍 MOI : ${loc.latitude}, ${loc.longitude} — ${loc.accuracy.toInt()}m")
         val point = GeoPoint(loc.latitude, loc.longitude)
         userMarker?.let { mapView.overlays.remove(it) }
         userMarker = Marker(mapView).apply {
             position = point
-            title = "📍 Tu es ici !"
+            title = "🟢 MOI"
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
             icon = ContextCompat.getDrawable(this@MainActivity, android.R.drawable.ic_menu_mylocation)
         }
@@ -167,7 +214,40 @@ class MainActivity : AppCompatActivity() {
         mapView.controller.animateTo(point)
         mapView.invalidate()
         locationCallback?.let { fusedLocationClient.removeLocationUpdates(it) }
-        Toast.makeText(this, "📍 Position trouvée !", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun handleIncomingMessage(msg: String) {
+        addLog("📩 REÇU : $msg")
+        when {
+            msg.startsWith("!!") && msg.contains(",") -> {
+                val p = msg.removePrefix("!!").split(",")
+                val lat = p[0].toDoubleOrNull()
+                val lon = p[1].toDoubleOrNull()
+                if (lat != null && lon != null && !(lat == 0.0 && lon == 0.0)) {
+                    showRemotePosition(lat, lon, p.getOrNull(2) ?: "?")
+                }
+            }
+            msg.startsWith("!!OK-") -> Toast.makeText(this, "✅ $msg", Toast.LENGTH_SHORT).show()
+            msg.startsWith("!!ERREUR") -> Toast.makeText(this, "⚠️ $msg", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun showRemotePosition(lat: Double, lon: Double, alt: String) {
+        val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+        addLog("🔴 L'AUTRE : $lat, $lon — Alt: $alt m")
+        val point = GeoPoint(lat, lon)
+        
+        remoteMarker?.let { mapView.overlays.remove(it) }
+        remoteMarker = Marker(mapView).apply {
+            position = point
+            title = "🔴 LUI — $time"
+            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+            icon = ContextCompat.getDrawable(this@MainActivity, android.R.drawable.ic_menu_compass)
+        }
+        mapView.overlays.add(remoteMarker)
+        mapView.controller.animateTo(point)
+        mapView.invalidate()
+        Toast.makeText(this, "🔴 Position de l'autre reçue !", Toast.LENGTH_LONG).show()
     }
 
     private fun hasLocationPermission() =
@@ -178,65 +258,6 @@ class MainActivity : AppCompatActivity() {
         if (it.startsWith("0") && it.length == 10) "+33${it.substring(1)}" else it
     }
 
-    private fun isMyNumber(t: String): Boolean {
-        val my = normalizeNumber(myPhoneNumber)
-        val ot = normalizeNumber(t)
-        return my.isNotEmpty() && (ot == my || ot == my.replace("+33", "0") || my == ot.replace("+33", "0"))
-    }
-
-    private fun sendCommand(cmd: String) {
-        val num = etTargetNumber.text.toString().trim()
-        if (num.isEmpty()) { Toast.makeText(this, "⚠️ Entre un numéro", Toast.LENGTH_SHORT).show(); return }
-        myPhoneNumber = num
-        addLog("📤 $cmd → $num")
-        if (isMyNumber(num)) { handleLocalCommand(cmd); return }
-        val svc = Intent(this, MySafeAgentService::class.java).apply {
-            action = MySafeAgentService.ACTION_PROCESS_COMMAND
-            putExtra("sender_number", num)
-            putExtra("command", cmd)
-        }
-        ContextCompat.startForegroundService(this, svc)
-    }
-
-    private fun handleLocalCommand(cmd: String) {
-        when (cmd.uppercase()) {
-            "!!POSITION" -> getInstantPosition()
-            "!!DEMARRER" -> {
-                startForegroundService(Intent(this, MySafeAgentService::class.java))
-                Toast.makeText(this, "✅ SUIVI DÉMARRÉ 🟢", Toast.LENGTH_LONG).show()
-            }
-            "!!STOP" -> {
-                stopService(Intent(this, MySafeAgentService::class.java))
-                Toast.makeText(this, "✅ SUIVI ARRÊTÉ", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    private fun handleIncomingMessage(msg: String) {
-        addLog("📩 $msg")
-        if (msg.startsWith("!!") && msg.contains(",")) {
-            val p = msg.removePrefix("!!").split(",")
-            val lat = p[0].toDoubleOrNull()
-            val lon = p[1].toDoubleOrNull()
-            if (lat != null && lon != null && !(lat == 0.0 && lon == 0.0)) {
-                addPositionFromRemote(lat, lon, p.getOrNull(2) ?: "?")
-            }
-        }
-    }
-
-    private fun addPositionFromRemote(lat: Double, lon: Double, alt: String) {
-        val point = GeoPoint(lat, lon)
-        userMarker?.let { mapView.overlays.remove(it) }
-        userMarker = Marker(mapView).apply {
-            position = point
-            title = "📍 ${SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())}"
-            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-        }
-        mapView.overlays.add(userMarker)
-        mapView.controller.animateTo(point)
-        mapView.invalidate()
-    }
-
     private fun addLog(text: String) {
         val t = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
         tvPositions.text = "[$t] $text\n\n${tvPositions.text}"
@@ -244,7 +265,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun clearMap() {
         userMarker?.let { mapView.overlays.remove(it) }
+        remoteMarker?.let { mapView.overlays.remove(it) }
         userMarker = null
+        remoteMarker = null
         mapView.overlays.clear()
         mapView.invalidate()
         tvPositions.text = ""

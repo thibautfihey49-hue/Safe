@@ -33,21 +33,29 @@ class SmsReceiver : BroadcastReceiver() {
         }
         
         val message = messageBody.toString().trim()
-        Log.d(TAG, "📩 SMS BRUT reçu de $senderNumber : [$message]")
+        Log.d(TAG, "📩 SMS BRUT reçu de [$senderNumber] : [$message]")
 
-        // ✅ TOUT CE QUI COMMENCE PAR !! = RÉPONSE DE POSITION
+        // ✅ TOUT CE QUI COMMENCE PAR !! = COMMANDE/RÉPONSE
         if (message.startsWith("!!")) {
-            Log.d(TAG, "✅ Réponse de position détectée !")
+            Log.d(TAG, "✅ Message de position détecté !")
             
-            // ⚡ DIFFUSER LA RÉPONSE À L'UI — avec le bon nom d'action !
-            val uiIntent = Intent("com.mysafe.mysafe.SMS_RECEIVED")
-            uiIntent.setPackage(context?.packageName)
-            uiIntent.putExtra("sms_message", message)
+            // ⚡ ENVOYER AU SERVICE AVEC L'EXPÉDITEUR !
+            val svcIntent = Intent(context, MySafeAgentService::class.java).apply {
+                action = MySafeAgentService.SMS_RECEIVED
+                putExtra("sms_message", message)
+                putExtra("sender_number", senderNumber)  // ✅ AJOUTÉ !
+            }
+            context?.startForegroundService(svcIntent)
+            
+            // ⚡ ENVOYER À L'UI AUSSI
+            val uiIntent = Intent("com.mysafe.mysafe.SMS_RECEIVED").apply {
+                setPackage(context?.packageName)
+                putExtra("sms_message", message)
+            }
             context?.sendBroadcast(uiIntent)
             
-            Log.d(TAG, "📡 Réponse envoyée à l'UI: $message")
+            Log.d(TAG, "📡 Message transmis au service + UI")
             
-            // Essayer de cacher le SMS
             try { abortBroadcast() } catch (e: Exception) {}
         }
     }

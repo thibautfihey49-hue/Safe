@@ -46,7 +46,7 @@ class MySafeAgentService : Service() {
             override fun onLocationResult(result: LocationResult) {
                 result.lastLocation?.let { loc ->
                     if (isTracking && targetNumber.isNotEmpty()) {
-                        sendLocationResponse(loc, targetNumber)
+                        sendSms(targetNumber, "!!${loc.latitude},${loc.longitude},${loc.altitude.toInt()}")
                     }
                 }
             }
@@ -58,57 +58,56 @@ class MySafeAgentService : Service() {
             ACTION_SEND_COMMAND -> {
                 val target = intent.getStringExtra("target_number") ?: return START_NOT_STICKY
                 val command = intent.getStringExtra("command") ?: return START_NOT_STICKY
-                handleOutgoingCommand(target, command)
+                targetNumber = normalizeNumber(target)
+                handleOutgoingCommand(targetNumber, command)
             }
-            // ✅ RÉPONDRE AUX COMMANDES REÇUES PAR SMS
             SMS_RECEIVED -> {
                 val message = intent.getStringExtra("sms_message") ?: return START_NOT_STICKY
-                handleIncomingCommand(message)
+                val sender = intent.getStringExtra("sender_number") ?: return START_NOT_STICKY
+                handleIncomingCommand(message, normalizeNumber(sender))
             }
         }
         return START_STICKY
     }
 
-    // ✅ TRAITER LES COMMANDES REÇUES PAR SMS DE L'AUTRE TÉLÉPHONE
-    private fun handleIncomingCommand(message: String) {
-        Log.d(TAG, "📩 Commande reçue par SMS: $message")
+    // ✅ TRAITER LES COMMANDES REÇUES — AVEC L'EXPÉDITEUR !
+    private fun handleIncomingCommand(message: String, senderNumber: String) {
+        Log.d(TAG, "📩 Commande reçue de [$senderNumber] : [$message]")
         
         when {
             message == "!!POSITION" -> {
-                Log.d(TAG, "📍 Demande de position reçue — Envoi de ma position !")
-                getCurrentLocationAndReply()
+                Log.d(TAG, "📍 Demande de position — je réponds à $senderNumber !")
+                getCurrentLocationAndReply(senderNumber)
             }
             message == "!!DEMARRER" -> {
-                Log.d(TAG, "🔔 Suivi continu démarré !")
+                Log.d(TAG, "🔔 Suivi continu démarré pour $senderNumber")
+                targetNumber = senderNumber
                 isTracking = true
                 startLocationUpdates()
             }
             message == "!!STOP" -> {
-                Log.d(TAG, "🛑 Suivi arrêté !")
+                Log.d(TAG, "🛑 Suivi arrêté")
                 isTracking = false
                 stopLocationUpdates()
+            }
+            // ✅ Si c'est une RÉPONSE de position → la transmettre à l'UI
+            message.startsWith("!!") && message.contains(",") -> {
+                Log.d(TAG, "📩 Réponse de position reçue de $senderNumber : $message")
+                val uiIntent = Intent("com.mysafe.mysafe.SMS_RECEIVED").apply {
+                    setPackage(packageName)
+                    putExtra("sms_message", message)
+                }
+                sendBroadcast(uiIntent)
             }
         }
     }
 
     private fun handleOutgoingCommand(target: String, command: String) {
-        targetNumber = target
         Log.d(TAG, "📤 Envoi commande '$command' à $target")
-        
-        when (command) {
-            "!!POSITION" -> sendSms(target, "!!POSITION")
-            "!!DEMARRER" -> {
-                isTracking = true
-                sendSms(target, "!!DEMARRER")
-            }
-            "!!STOP" -> {
-                isTracking = false
-                sendSms(target, "!!STOP")
-            }
-        }
+        sendSms(target, command)
     }
 
-    private fun getCurrentLocationAndReply() {
+    private fun getCurrentLocationAndReply(replyToNumber: String) {
         if (ActivityCompat.checkSelfPermission(
                 this,
                 Manifest.permission.ACCESS_FINE_LOCATION
@@ -120,17 +119,17 @@ class MySafeAgentService : Service() {
         
         fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
             if (loc != null && loc.latitude != 0.0 && loc.longitude != 0.0) {
-                Log.d(TAG, "✅ Position trouvée: ${loc.latitude}, ${loc.longitude}")
                 val response = "!!${loc.latitude},${loc.longitude},${loc.altitude.toInt()}"
-                sendSmsReply(response)  // ✅ RÉPONDRE À L'EXPÉDITEUR !
+                Log.d(TAG, "✅ Position trouvée → Réponse à $replyToNumber : $response")
+                sendSms(replyToNumber, response)
             } else {
-                Log.d(TAG, "⏳ Position trop vieille ou nulle — demande de position fraîche")
-                requestFreshLocationAndReply()
+                Log.d(TAG, "⏳ Position trop vieille — demande fraîche...")
+                requestFreshLocationAndReply(replyToNumber)
             }
         }
     }
 
-    private fun requestFreshLocationAndReply() {
+    private fun requestFreshLocationAndReply(replyToNumber: String) {
         val req = LocationRequest.create().apply {
             numUpdates = 1
             expirationTime = 15000
@@ -147,8 +146,8 @@ class MySafeAgentService : Service() {
             override fun onLocationResult(result: LocationResult) {
                 result.lastLocation?.let { loc ->
                     val response = "!!${loc.latitude},${loc.longitude},${loc.altitude.toInt()}"
-                    Log.d(TAG, "✅ Position fraîche obtenue: $response")
-                    sendSmsReply(response)
+                    Log.d(TAG, "✅ Position fraîche → Réponse à $replyToNumber : $response")
+                    sendSms(replyToNumber, response)
                     fusedLocationClient.removeLocationUpdates(this)
                 }
             }
@@ -161,28 +160,17 @@ class MySafeAgentService : Service() {
                 Manifest.permission.ACCESS_FINE_LOCATION
             ) != PackageManager.PERMISSION_GRANTED
         ) return
-        fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback!!, mainLooper)
+        locationCallback?.let {
+            fusedLocationClient.requestLocationUpdates(locationRequest, it, mainLooper)
+        }
     }
 
     private fun stopLocationUpdates() {
         locationCallback?.let { fusedLocationClient.removeLocationUpdates(it) }
     }
 
-    private fun sendLocationResponse(loc: Location, toNumber: String) {
-        val response = "!!${loc.latitude},${loc.longitude},${loc.altitude.toInt()}"
-        Log.d(TAG, "📤 Envoi position à $toNumber: $response")
-        sendSms(toNumber, response)
-    }
-
-    private fun sendSmsReply(message: String) {
-        // ⚡ RÉPONDRE AU NUMÉRO QUI A DEMANDÉ LA POSITION
-        // On a besoin de stocker l'expéditeur quand on reçoit le SMS
-        // Pour l'instant → on utilise le numéro cible connu
-        if (targetNumber.isNotEmpty()) {
-            sendSms(targetNumber, message)
-        } else {
-            Log.d(TAG, "⚠️ Numéro cible inconnu — impossible de répondre")
-        }
+    private fun normalizeNumber(s: String) = s.replace("\\s".toRegex(), "").replace("-", "").let {
+        if (it.startsWith("+")) it else if (it.startsWith("0") && it.length == 10) "+33${it.substring(1)}" else it
     }
 
     private fun sendSms(to: String, message: String) {
@@ -194,9 +182,9 @@ class MySafeAgentService : Service() {
             } else {
                 manager.sendTextMessage(to, null, message, null, null)
             }
-            Log.d(TAG, "✅ SMS envoyé à $to: $message")
+            Log.d(TAG, "✅ SMS ENVOYÉ à $to : $message")
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Échec envoi SMS: ${e.message}")
+            Log.e(TAG, "❌ ÉCHEC ENVOI SMS à $to : ${e.message}")
         }
     }
 

@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationListener
@@ -49,11 +50,10 @@ class MySafeAgentService : Service() {
         smsManager = SmsManager.getDefault()
         createSilentNotificationChannel()
         
-        // ✅ Vérifier les permissions AVANT de passer en foreground
         if (hasLocationPermission()) {
             startForeground(NOTIF_ID, buildSilentNotification())
         } else {
-            Log.w(TAG, "Permission localisation manquante — service lancé sans foreground")
+            Log.w(TAG, "Permission localisation manquante")
         }
     }
 
@@ -69,10 +69,10 @@ class MySafeAgentService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        intent?.let {
-            if (it.action == ACTION_PROCESS_COMMAND) {
-                val cmd = it.getStringExtra("command") ?: return@let
-                val sender = it.getStringExtra("sender_number") ?: return@let
+        intent?.let { receivedIntent ->
+            if (receivedIntent.action == ACTION_PROCESS_COMMAND) {
+                val cmd = receivedIntent.getStringExtra("command") ?: return@let
+                val sender = receivedIntent.getStringExtra("sender_number") ?: return@let
                 currentSender = sender
                 handleCommand(cmd, sender)
             }

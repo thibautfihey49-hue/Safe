@@ -7,6 +7,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
@@ -32,6 +33,7 @@ class MySafeAgentService : Service() {
     private var isTracking = false
     private var lastLocation: Location? = null
     private var lastSendTime = 0L
+    private var targetNumber: String? = null
 
     private val locationListener = object : LocationListener {
         override fun onLocationChanged(location: Location) {
@@ -44,11 +46,38 @@ class MySafeAgentService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        Log.d(TAG, "✅ SERVICE CRÉÉ — onCreate()")
+        Log.d(TAG, "✅ SERVICE CRÉÉ — ACTIVATION GPS IMMÉDIATE")
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         smsManager = SmsManager.getDefault()
         createNotificationChannel()
         startForegroundWithCheck()
+        
+        // ✅ DÈS LE DÉMARRAGE : ON ÉCOUTE LE GPS → AFFICHE LA PASTILLE ANDROID 🟢
+        startGpsListening()
+    }
+
+    private fun startGpsListening() {
+        if (!hasLocationPermission()) {
+            Log.w(TAG, "❌ Permission GPS manquante — impossible d'activer l'écoute")
+            return
+        }
+        try {
+            locationManager.requestLocationUpdates(
+                LocationManager.GPS_PROVIDER,
+                0L,  // ✅ Mise à jour immédiate
+                0f,  // ✅ Mise à jour à chaque mouvement
+                locationListener
+            )
+            locationManager.requestLocationUpdates(
+                LocationManager.NETWORK_PROVIDER,
+                0L,
+                0f,
+                locationListener
+            )
+            Log.d(TAG, "🟢 GPS ACTIVÉ EN CONTINU — pastille système visible !")
+        } catch (e: SecurityException) {
+            Log.e(TAG, "❌ Impossible d'activer le GPS : ${e.message}")
+        }
     }
 
     private fun startForegroundWithCheck() {
@@ -79,12 +108,13 @@ class MySafeAgentService : Service() {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "MySafe GPS",
-                NotificationManager.IMPORTANCE_DEFAULT
+                NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = "Suivi GPS en cours"
-                setShowBadge(true)
                 enableVibration(false)
-                enableLights(false)
+                enableLights(true)
+                lightColor = Color.GREEN
+                setShowBadge(true)
             }
             val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             nm.createNotificationChannel(channel)
@@ -94,12 +124,13 @@ class MySafeAgentService : Service() {
 
     private fun buildNotification(): Notification {
         return Notification.Builder(this, CHANNEL_ID)
-            .setContentTitle("🔔 MySafe — ACTIF")
-            .setContentText("Suivi GPS en cours...")
-            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+            .setContentTitle("🟢 MySafe — GPS ACTIF")
+            .setContentText("Localisation en temps réel")
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setOngoing(true)
-            .setPriority(Notification.PRIORITY_DEFAULT)
+            .setPriority(Notification.PRIORITY_HIGH)
             .setCategory(Notification.CATEGORY_SERVICE)
+            .setVisibility(Notification.VISIBILITY_PUBLIC)
             .build()
     }
 
@@ -136,6 +167,7 @@ class MySafeAgentService : Service() {
             if (it.action == ACTION_PROCESS_COMMAND) {
                 val cmd = it.getStringExtra("command") ?: return@let
                 val target = it.getStringExtra("sender_number") ?: return@let
+                targetNumber = target
                 handleCommand(cmd, target)
             }
         }
@@ -170,10 +202,6 @@ class MySafeAgentService : Service() {
 
     private fun startTracking(target: String) {
         Log.d(TAG, "▶️ Démarrage suivi...")
-        if (isTracking) {
-            sendSMSResponse(target, "!!OK-SUIVI")
-            return
-        }
         isTracking = true
         sendSMSResponse(target, "!!OK-SUIVI")
         
@@ -181,30 +209,19 @@ class MySafeAgentService : Service() {
             val msg = "!!${String.format("%.6f", loc.latitude)},${String.format("%.6f", loc.longitude)},${String.format("%.1f", loc.altitude)}"
             sendSMSResponse(target, msg)
         }
-        
-        try {
-            locationManager.requestLocationUpdates(
-                LocationManager.GPS_PROVIDER, TIME_THRESHOLD, DISTANCE_THRESHOLD, locationListener
-            )
-            locationManager.requestLocationUpdates(
-                LocationManager.NETWORK_PROVIDER, TIME_THRESHOLD, DISTANCE_THRESHOLD, locationListener
-            )
-            Log.d(TAG, "✅ Écoute GPS activée")
-        } catch (e: SecurityException) {
-            Log.e(TAG, "❌ Impossible de démarrer le GPS : ${e.message}")
-        }
+        Log.d(TAG, "✅ Suivi actif — mises à jour toutes les 10m")
     }
 
     private fun stopTracking(target: String) {
         Log.d(TAG, "⏹️ Arrêt suivi")
         isTracking = false
-        locationManager.removeUpdates(locationListener)
         sendSMSResponse(target, "!!OK-STOP")
         lastLocation = null
     }
 
     private fun processNewLocation(location: Location) {
         if (!isTracking) return
+        
         val now = System.currentTimeMillis()
         val last = lastLocation
         val shouldSend = when {
@@ -216,9 +233,32 @@ class MySafeAgentService : Service() {
         if (!shouldSend) return
         
         val msg = "!!${String.format("%.6f", location.latitude)},${String.format("%.6f", location.longitude)},${String.format("%.1f", location.altitude)}"
-        sendDirectResponse(msg)
+        
+        // ✅ Envoyer en mode local ou par SMS selon le cas
+        if (targetNumber != null) {
+            val myNum = getMyNumberNormalized()
+            val targetNorm = targetNumber!!.replace("\\s".toRegex(), "").replace("-", "")
+            val isSelf = myNum.isNotEmpty() && (targetNorm == myNum || targetNorm == myNum.replace("+33", "0"))
+            
+            if (isSelf) {
+                sendDirectResponse(msg)
+            } else {
+                sendSMSResponse(targetNumber!!, msg)
+            }
+        } else {
+            sendDirectResponse(msg)
+        }
+        
         lastLocation = location
         lastSendTime = now
+    }
+    
+    private fun getMyNumberNormalized(): String {
+        return targetNumber?.let { num ->
+            var n = num.replace("\\s".toRegex(), "").replace("-", "")
+            if (n.startsWith("0") && n.length == 10) n = "+33" + n.substring(1)
+            n
+        } ?: ""
     }
 
     private fun getLastKnownLocation(): Location? {
@@ -239,8 +279,11 @@ class MySafeAgentService : Service() {
     
     override fun onDestroy() {
         super.onDestroy()
-        Log.d(TAG, "🛑 SERVICE DÉTRUIT")
+        Log.d(TAG, "🛑 SERVICE DÉTRUIT — arrêt GPS")
         isTracking = false
         locationManager.removeUpdates(locationListener)
+        lastLocation = null
+        lastSendTime = 0L
+        targetNumber = null
     }
 }

@@ -42,7 +42,8 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private lateinit var locationManager: LocationManager
     private var myPhoneNumber: String = ""
 
-    private val PERMS = arrayOf(
+    // ✅ Ajout POST_NOTIFICATIONS pour Android 13+
+    private val PERMS = mutableListOf(
         Manifest.permission.INTERNET,
         Manifest.permission.ACCESS_NETWORK_STATE,
         Manifest.permission.SEND_SMS,
@@ -53,9 +54,12 @@ class MainActivity : AppCompatActivity(), LocationListener {
         Manifest.permission.ACCESS_BACKGROUND_LOCATION,
         Manifest.permission.FOREGROUND_SERVICE,
         Manifest.permission.FOREGROUND_SERVICE_LOCATION,
-        Manifest.permission.POST_NOTIFICATIONS,
         Manifest.permission.SYSTEM_ALERT_WINDOW
-    )
+    ).apply {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }.toTypedArray()
 
     private val smsReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -81,7 +85,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
             registerReceiver(smsReceiver, filter)
         }
 
-        addLog("✅ Prête — pas de SMS dans ta boîte !")
+        addLog("✅ Prête — clique DÉMARRER pour lancer le suivi")
     }
 
     private fun initViews() {
@@ -146,7 +150,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
             addPosition(loc.latitude, loc.longitude, String.format("%.1f", loc.altitude))
             addLog("✅ Position trouvée !")
         } else {
-            addLog("⚠️ Position inconnue — active le GPS")
+            addLog("⚠️ Position inconnue — active le GPS et attends")
             locationManager.requestSingleUpdate(LocationManager.GPS_PROVIDER, this, null)
             Toast.makeText(this, "⏳ Attente GPS...", Toast.LENGTH_LONG).show()
         }
@@ -166,11 +170,13 @@ class MainActivity : AppCompatActivity(), LocationListener {
             return
         }
         myPhoneNumber = num
+        
         if (isMyNumber(num)) {
             addLog("📡 Mode local — 0 SMS ✅")
             handleLocalCommand(cmd)
             return
         }
+        
         val svc = Intent(this, MySafeAgentService::class.java).apply {
             action = MySafeAgentService.ACTION_PROCESS_COMMAND
             putExtra("sender_number", num)
@@ -178,6 +184,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
         }
         ContextCompat.startForegroundService(this, svc)
         addLog("📤 Commande envoyée à $num : $cmd")
+        Toast.makeText(this, "✅ Service démarré — vérifie la notification 🔔", Toast.LENGTH_LONG).show()
     }
 
     private fun handleLocalCommand(cmd: String) {
@@ -206,7 +213,9 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
     private fun startLocalTracking() {
         addLog("✅ Suivi démarré (mode local)")
-        Toast.makeText(this, "✅ Suivi démarré", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "✅ Suivi démarré — notification visible 🔔", Toast.LENGTH_LONG).show()
+        val svc = Intent(this, MySafeAgentService::class.java)
+        ContextCompat.startForegroundService(this, svc)
     }
 
     private fun stopLocalTracking() {

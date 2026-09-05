@@ -14,6 +14,7 @@ import android.os.Build
 import android.os.Bundle
 import android.telephony.SmsManager
 import android.util.Log
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 
 class MySafeAgentService : Service() {
@@ -47,8 +48,29 @@ class MySafeAgentService : Service() {
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         smsManager = SmsManager.getDefault()
         createSilentNotificationChannel()
-        if (hasLocationPermission()) {
-            startForeground(NOTIF_ID, buildSilentNotification())
+        
+        // ✅ Démarrer le service en premier plan ICI dans onCreate
+        startForegroundSafely()
+    }
+
+    private fun startForegroundSafely() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    android.Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                Log.w(TAG, "Permission notifications manquante")
+                return
+            }
+        }
+        
+        try {
+            val notif = buildSilentNotification()
+            startForeground(NOTIF_ID, notif)
+            Log.d(TAG, "✅ Service premier plan démarré")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Échec démarrage service premier plan", e)
         }
     }
 
@@ -137,7 +159,9 @@ class MySafeAgentService : Service() {
             locationManager.requestLocationUpdates(
                 LocationManager.NETWORK_PROVIDER, TIME_THRESHOLD, DISTANCE_THRESHOLD, locationListener
             )
-        } catch (e: SecurityException) {}
+        } catch (e: SecurityException) {
+            Log.e(TAG, "Impossible de démarrer le GPS", e)
+        }
     }
 
     private fun stopTracking(target: String) {
@@ -172,7 +196,9 @@ class MySafeAgentService : Service() {
                     if (best == null || loc.accuracy < best!!.accuracy) best = loc
                 }
             }
-        } catch (e: SecurityException) {}
+        } catch (e: SecurityException) {
+            Log.e(TAG, "Accès GPS refusé", e)
+        }
         return best
     }
 
@@ -191,10 +217,12 @@ class MySafeAgentService : Service() {
     private fun buildSilentNotification(): Notification {
         val builder = Notification.Builder(this, CHANNEL_ID)
             .setContentTitle("MySafe")
-            .setContentText("Service actif")
+            .setContentText("Service actif — Suivi GPS en cours")
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setOngoing(true)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) builder.setVibrate(longArrayOf(0))
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            builder.setVibrate(longArrayOf(0))
+        }
         return builder.build()
     }
 

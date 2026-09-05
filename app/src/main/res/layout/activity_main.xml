@@ -23,10 +23,48 @@
         android:inputType="phone"
         android:layout_marginBottom="12dp"/>
 
+    <!-- 📋 BOUTONS DE COMMANDES -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:layout_marginBottom="8dp">
+
+        <Button
+            android:id="@+id/btnPosition"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="4dp"
+            android:backgroundTint="#FF9800"
+            android:textColor="#FFFFFF"
+            android:text="📍 Position"/>
+
+        <Button
+            android:id="@+id/btnDemarrer"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="4dp"
+            android:backgroundTint="#4CAF50"
+            android:textColor="#FFFFFF"
+            android:text="▶️ Démarrer"/>
+
+        <Button
+            android:id="@+id/btnStop"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:backgroundTint="#F44336"
+            android:textColor="#FFFFFF"
+            android:text="⏹️ Arrêter"/>
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="12dp">
 
         <Button
             android:id="@+id/btnFloatingMap"
@@ -34,6 +72,8 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:layout_marginEnd="4dp"
+            android:backgroundTint="#673AB7"
+            android:textColor="#FFFFFF"
             android:text="📌 Carte flottante"/>
 
         <Button
@@ -41,15 +81,39 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginStart="4dp"
-            android:text="🗑️ Effacer"/>
+            android:backgroundTint="#607D8B"
+            android:textColor="#FFFFFF"
+            android:text="🗑️ Effacer carte"/>
     </LinearLayout>
 
-    <org.osmdroid.views.MapView
-        android:id="@+id/mapView"
+    <!-- 📍 Zone d'affichage des positions -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="📌 Dernières positions :"
+        android:textStyle="bold"
+        android:layout_marginBottom="4dp"/>
+
+    <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:layout_marginTop="12dp"/>
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:id="@+id/tvPositions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="8dp"
+            android:background="#FFFFFF"
+            android:textSize="12sp"
+            android:text="Aucune position..."/>
+    </ScrollView>
+
+    <!-- 🗺️ Carte -->
+    <org.osmdroid.views.MapView
+        android:id="@+id/mapView"
+        android:layout_width="match_parent"
+        android:layout_height="200dp"/>
 
 </LinearLayout>

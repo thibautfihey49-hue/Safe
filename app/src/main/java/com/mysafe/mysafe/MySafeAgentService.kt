@@ -17,12 +17,13 @@ import android.util.Log
 class MySafeAgentService : Service() {
     companion object {
         const val ACTION_PROCESS_COMMAND = "com.mysafe.mysafe.PROCESS_CMD"
+        const val SMS_RECEIVED = "com.mysafe.mysafe.SMS_RECEIVED"
         private const val TAG = "MySafeAgent"
         private const val NOTIF_ID = 0x7777
         private const val CHANNEL_ID = "MySafeService"
         private const val DISTANCE_THRESHOLD = 10f
         private const val TIME_THRESHOLD = 90000L
-        private const val SMS_DATA_ENCODING: Short = 0x04 // ENCODING_16BIT = 4
+        private const val SMS_DATA_ENCODING: Short = 0x04
     }
 
     private lateinit var locationManager: LocationManager
@@ -84,12 +85,16 @@ class MySafeAgentService : Service() {
     private fun startContinuousTracking(sender: String) {
         if (isTracking) {
             sendDataSMS(sender, "!!OK-SUIVI")
+            broadcastMessage("!!OK-SUIVI")
             return
         }
         isTracking = true
         sendDataSMS(sender, "!!OK-SUIVI")
+        broadcastMessage("!!OK-SUIVI")
 
-        getLastKnownLocation()?.let { sendLocationResponse(sender, it) }
+        getLastKnownLocation()?.let { 
+            sendLocationResponse(sender, it)
+        }
 
         try {
             locationManager.requestLocationUpdates(
@@ -113,6 +118,7 @@ class MySafeAgentService : Service() {
         isTracking = false
         locationManager.removeUpdates(locationListener)
         sendDataSMS(sender, "!!OK-STOP")
+        broadcastMessage("!!OK-STOP")
         lastLocation = null
     }
 
@@ -142,6 +148,12 @@ class MySafeAgentService : Service() {
         val alt = String.format("%.1f", loc.altitude)
         val message = "!!$lat,$lon,$alt"
         sendDataSMS(to, message)
+        broadcastMessage(message)
+    }
+
+    private fun broadcastMessage(msg: String) {
+        val intent = Intent(SMS_RECEIVED).putExtra("sms_message", msg)
+        sendBroadcast(intent)
     }
 
     private fun sendDataSMS(dest: String, message: String) {

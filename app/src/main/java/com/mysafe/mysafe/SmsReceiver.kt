@@ -19,8 +19,6 @@ class SmsReceiver : BroadcastReceiver() {
         val pdus = bundle.get("pdus") as? Array<*> ?: return
         
         val messageBody = StringBuilder()
-        var senderNumber = ""
-        
         for (pdu in pdus) {
             val sms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 SmsMessage.createFromPdu(pdu as ByteArray, bundle.getString("format"))
@@ -29,29 +27,24 @@ class SmsReceiver : BroadcastReceiver() {
                 SmsMessage.createFromPdu(pdu as ByteArray)
             }
             messageBody.append(sms.messageBody)
-            if (senderNumber.isEmpty()) senderNumber = sms.originatingAddress ?: ""
         }
         
         val message = messageBody.toString().trim()
-        
-        // ✅ INTERCEPTER LES COMMANDES MySafe
+        Log.d(TAG, "📩 SMS reçu: $message")
+
+        // ✅ TOUT CE QUI COMMENCE PAR !! = RÉPONSE DE POSITION
         if (message.startsWith("!!")) {
-            Log.d(TAG, "📩 Commande MySafe reçue : $message")
+            Log.d(TAG, "✅ Commande MySafe détectée — transmission à l'UI !")
             
-            // ⚡ TRAITER LA COMMANDE — RÉPONDRE IMMÉDIATEMENT
-            val serviceIntent = Intent(context, MySafeAgentService::class.java).apply {
-                action = MySafeAgentService.ACTION_PROCESS_COMMAND
-                putExtra("sender_number", senderNumber)
-                putExtra("command", message)
-            }
+            // ⚡ DIFFUSER LA RÉPONSE DIRECTEMENT À L'ACTIVITÉ
+            val uiIntent = Intent(MySafeAgentService.SMS_RECEIVED)
+            uiIntent.setPackage(context?.packageName) // CIBLE NOTRE APPLI SEULEMENT
+            uiIntent.putExtra("sms_message", message)
+            context?.sendBroadcast(uiIntent)
             
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context?.startForegroundService(serviceIntent)
-            } else {
-                context?.startService(serviceIntent)
-            }
+            Log.d(TAG, "📡 Réponse envoyée à l'activité !")
             
-            // ❌ ANNULER L'AFFICHAGE — si le système l'autorise
+            // Essayer de cacher le SMS — si le système l'autorise
             try { abortBroadcast() } catch (e: Exception) {}
         }
     }

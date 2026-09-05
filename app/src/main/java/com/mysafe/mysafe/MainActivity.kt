@@ -62,9 +62,11 @@ class MainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
     }.toTypedArray()
 
-    private val smsReceiver = object : BroadcastReceiver() {
+    // ✅ RÉCEPTEUR POUR LES RÉPONSES DE POSITION
+    private val smsResponseReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val msg = intent?.getStringExtra("sms_message") ?: return
+            Log.d("MySafe-UI", "📥 Réponse reçue dans l'UI: $msg")
             runOnUiThread { handleIncomingMessage(msg) }
         }
     }
@@ -77,14 +79,13 @@ class MainActivity : AppCompatActivity() {
         setupMap()
         setupFusedLocation()
         
-        // ✅ ENREGISTRER LE RÉCEPTEUR POUR LES RÉPONSES DE POSITION
+        // ✅ ENREGISTRER LE RÉCEPTEUR SANS RESTRICTION DE DRAPEAU
         registerReceiver(
-            smsReceiver,
-            IntentFilter(MySafeAgentService.SMS_RECEIVED),
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) Context.RECEIVER_NOT_EXPORTED else 0
+            smsResponseReceiver,
+            IntentFilter(MySafeAgentService.SMS_RECEIVED)
         )
         
-        addLog("✅ MySafe PRÊT")
+        addLog("✅ MySafe PRÊT — Récepteur actif !")
         addLog("📍 🟢 MOI | 🔴 L'AUTRE")
     }
 
@@ -167,7 +168,7 @@ class MainActivity : AppCompatActivity() {
             putExtra("command", "!!POSITION")
         }
         ContextCompat.startForegroundService(this, svc)
-        Toast.makeText(this, "📩 Demande envoyée !", Toast.LENGTH_LONG).show()
+        Toast.makeText(this, "📩 Demande envoyée ! Attends la réponse...", Toast.LENGTH_LONG).show()
     }
 
     private fun startTracking() {
@@ -233,7 +234,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleIncomingMessage(msg: String) {
-        addLog("📩 REÇU : $msg")
+        addLog("📩 === RÉPONSE REÇUE ===")
+        addLog("📩 Contenu: $msg")
         
         if (msg.startsWith("!!") && msg.contains(",")) {
             val clean = msg.removePrefix("!!")
@@ -242,22 +244,27 @@ class MainActivity : AppCompatActivity() {
             val lon = parts.getOrNull(1)?.toDoubleOrNull()
             val alt = parts.getOrNull(2) ?: "?"
             
+            addLog("🔴 Lat=$lat Lon=$lon Alt=$alt")
+            
             if (lat != null && lon != null && lat != 0.0 && lon != 0.0) {
                 showRemotePosition(lat, lon, alt)
             } else {
-                addLog("⚠️ Coordonnées invalides")
+                addLog("⚠️ Coordonnées invalides !")
             }
         }
     }
 
     private fun showRemotePosition(lat: Double, lon: Double, alt: String) {
         val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
-        addLog("🔴 L'AUTRE : $lat, $lon — Alt: $alt m")
+        addLog("✅ === AFFICHAGE SUR LA CARTE ===")
         
         val point = GeoPoint(lat, lon)
         
         // Supprimer ancien marqueur
-        remoteMarker?.let { mapView.overlays.remove(it) }
+        remoteMarker?.let { 
+            mapView.overlays.remove(it)
+            addLog("🗑️ Ancien marqueur supprimé")
+        }
         
         // Créer nouveau marqueur ROUGE
         remoteMarker = Marker(mapView).apply {
@@ -267,16 +274,17 @@ class MainActivity : AppCompatActivity() {
             icon = ContextCompat.getDrawable(this@MainActivity, android.R.drawable.ic_menu_compass)
         }
         
-        // Ajouter et forcer le rafraîchissement
+        // Ajouter à la carte
         remoteMarker?.let {
             mapView.overlays.add(it)
-            addLog("✅ MARQUEUR AJOUTÉ ! Total marqueurs: ${mapView.overlays.size}")
+            addLog("✅ MARQUEUR ROUGE AJOUTÉ ! Total: ${mapView.overlays.size}")
         }
         
+        // Centrer la carte
         mapView.controller.animateTo(point)
         mapView.invalidate()
         
-        Toast.makeText(this, "🔴 Position affichée sur la carte !", Toast.LENGTH_LONG).show()
+        Toast.makeText(this, "🔴 Position de l'autre affichée !", Toast.LENGTH_LONG).show()
     }
 
     private fun hasLocationPermission() =
@@ -319,7 +327,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        unregisterReceiver(smsReceiver)
+        unregisterReceiver(smsResponseReceiver)
         locationCallback?.let { fusedLocationClient.removeLocationUpdates(it) }
     }
 }

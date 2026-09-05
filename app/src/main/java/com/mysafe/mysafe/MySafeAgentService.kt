@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
+import android.location.LocationManager
 import android.os.Build
 import android.os.IBinder
 import android.telephony.SmsManager
@@ -22,10 +23,11 @@ class MySafeAgentService : Service() {
         const val SMS_RECEIVED = "com.mysafe.mysafe.SMS_RECEIVED"
         const val ACTION_SEND_COMMAND = "com.mysafe.mysafe.SEND_COMMAND"
         private const val CHANNEL_ID = "MySafeServiceChannel"
+        private const val MIN_ACCURACY = 30f // ✅ Moins de 30 mètres = valide
     }
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
-    private lateinit var locationRequest: LocationRequest
+    private lateinit var locationRequestHighAccuracy: LocationRequest
     private var locationCallback: LocationCallback? = null
     private var targetNumber: String = ""
     private var isTracking = false
@@ -36,17 +38,21 @@ class MySafeAgentService : Service() {
         startForeground(1, buildNotification())
         
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        locationRequest = LocationRequest.create().apply {
-            interval = 30000
-            fastestInterval = 10000
+        
+        // ✅ PRÉCISION MAXIMALE !
+        locationRequestHighAccuracy = LocationRequest.create().apply {
+            interval = 5000        // 5 secondes
+            fastestInterval = 2000 // 2 secondes
             priority = LocationRequest.PRIORITY_HIGH_ACCURACY
+            smallestDisplacement = 2f // Bouger de 2m seulement = mise à jour
+            maxWaitTime = 10000
         }
         
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
                 result.lastLocation?.let { loc ->
-                    if (isTracking && targetNumber.isNotEmpty()) {
-                        sendSms(targetNumber, "!!${loc.latitude},${loc.longitude},${loc.altitude.toInt()}")
+                    if (isTracking && targetNumber.isNotEmpty() && loc.accuracy <= MIN_ACCURACY) {
+                        sendSms(targetNumber, "!!${loc.latitude},${loc.longitude},${loc.altitude.toInt()},${loc.accuracy.toInt()}m")
                     }
                 }
             }
@@ -70,17 +76,16 @@ class MySafeAgentService : Service() {
         return START_STICKY
     }
 
-    // ✅ TRAITER LES COMMANDES REÇUES — AVEC L'EXPÉDITEUR !
     private fun handleIncomingCommand(message: String, senderNumber: String) {
         Log.d(TAG, "📩 Commande reçue de [$senderNumber] : [$message]")
         
         when {
             message == "!!POSITION" -> {
-                Log.d(TAG, "📍 Demande de position — je réponds à $senderNumber !")
-                getCurrentLocationAndReply(senderNumber)
+                Log.d(TAG, "📍 Demande de position — je cherche la MEILLEURE précision !")
+                getBestLocationAndReply(senderNumber)
             }
             message == "!!DEMARRER" -> {
-                Log.d(TAG, "🔔 Suivi continu démarré pour $senderNumber")
+                Log.d(TAG, "🔔 Suivi continu démarré — précision MAX")
                 targetNumber = senderNumber
                 isTracking = true
                 startLocationUpdates()
@@ -90,9 +95,8 @@ class MySafeAgentService : Service() {
                 isTracking = false
                 stopLocationUpdates()
             }
-            // ✅ Si c'est une RÉPONSE de position → la transmettre à l'UI
             message.startsWith("!!") && message.contains(",") -> {
-                Log.d(TAG, "📩 Réponse de position reçue de $senderNumber : $message")
+                Log.d(TAG, "📩 Réponse de position reçue : $message")
                 val uiIntent = Intent("com.mysafe.mysafe.SMS_RECEIVED").apply {
                     setPackage(packageName)
                     putExtra("sms_message", message)
@@ -107,34 +111,54 @@ class MySafeAgentService : Service() {
         sendSms(target, command)
     }
 
-    private fun getCurrentLocationAndReply(replyToNumber: String) {
+    // ✅ TROUVER LA MEILLEURE POSITION PRÉCISE
+    private fun getBestLocationAndReply(replyToNumber: String) {
         if (ActivityCompat.checkSelfPermission(
                 this,
                 Manifest.permission.ACCESS_FINE_LOCATION
             ) != PackageManager.PERMISSION_GRANTED
         ) {
-            Log.d(TAG, "❌ Pas de permission GPS")
+            Log.d(TAG, "❌ Autorise la position GPS précise !")
+            return
+        }
+
+        val locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        
+        // ✅ Vérifier si GPS est activé
+        if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+            Log.d(TAG, "⚠️ GPS éteint — activer le GPS pour précision maximale")
+        }
+
+        // ✅ D'abord essayer la dernière position connue
+        val gpsLoc = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+        val netLoc = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+        
+        var bestLoc: Location? = null
+        
+        if (gpsLoc != null && gpsLoc.accuracy <= MIN_ACCURACY) bestLoc = gpsLoc
+        if (netLoc != null && (bestLoc == null || netLoc.accuracy < bestLoc.accuracy)) bestLoc = netLoc
+        
+        if (bestLoc != null) {
+            val response = "!!${bestLoc.latitude},${bestLoc.longitude},${bestLoc.altitude.toInt()},${bestLoc.accuracy.toInt()}m"
+            Log.d(TAG, "✅ Position trouvée — Précision: ${bestLoc.accuracy.toInt()}m")
+            sendSms(replyToNumber, response)
             return
         }
         
-        fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
-            if (loc != null && loc.latitude != 0.0 && loc.longitude != 0.0) {
-                val response = "!!${loc.latitude},${loc.longitude},${loc.altitude.toInt()}"
-                Log.d(TAG, "✅ Position trouvée → Réponse à $replyToNumber : $response")
-                sendSms(replyToNumber, response)
-            } else {
-                Log.d(TAG, "⏳ Position trop vieille — demande fraîche...")
-                requestFreshLocationAndReply(replyToNumber)
-            }
-        }
+        // ✅ Sinon demander une position FRAÎCHE et PRÉCISE
+        requestFreshAccurateLocation(replyToNumber)
     }
 
-    private fun requestFreshLocationAndReply(replyToNumber: String) {
+    private fun requestFreshAccurateLocation(replyToNumber: String) {
         val req = LocationRequest.create().apply {
-            numUpdates = 1
-            expirationTime = 15000
+            numUpdates = 3 // ✅ Prendre 3 mesures et garder la meilleure
+            expirationTime = 20000 // 20 secondes max
             priority = LocationRequest.PRIORITY_HIGH_ACCURACY
+            smallestDisplacement = 1f
         }
+        
+        var bestLocation: Location? = null
+        var updateCount = 0
         
         if (ActivityCompat.checkSelfPermission(
                 this,
@@ -144,11 +168,20 @@ class MySafeAgentService : Service() {
         
         fusedLocationClient.requestLocationUpdates(req, object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
+                updateCount++
                 result.lastLocation?.let { loc ->
-                    val response = "!!${loc.latitude},${loc.longitude},${loc.altitude.toInt()}"
-                    Log.d(TAG, "✅ Position fraîche → Réponse à $replyToNumber : $response")
-                    sendSms(replyToNumber, response)
-                    fusedLocationClient.removeLocationUpdates(this)
+                    Log.d(TAG, "📍 Position $updateCount: précision=${loc.accuracy.toInt()}m")
+                    if (bestLocation == null || loc.accuracy < bestLocation!!.accuracy) {
+                        bestLocation = loc
+                    }
+                    // ✅ Arrêter si précision suffisante ou 3 essais
+                    if (bestLocation!!.accuracy <= MIN_ACCURACY || updateCount >= 3) {
+                        val bLoc = bestLocation!!
+                        val response = "!!${bLoc.latitude},${bLoc.longitude},${bLoc.altitude.toInt()},${bLoc.accuracy.toInt()}m"
+                        Log.d(TAG, "✅ MEILLEURE POSITION — Précision: ${bLoc.accuracy.toInt()}m")
+                        sendSms(replyToNumber, response)
+                        fusedLocationClient.removeLocationUpdates(this)
+                    }
                 }
             }
         }, mainLooper)
@@ -161,7 +194,7 @@ class MySafeAgentService : Service() {
             ) != PackageManager.PERMISSION_GRANTED
         ) return
         locationCallback?.let {
-            fusedLocationClient.requestLocationUpdates(locationRequest, it, mainLooper)
+            fusedLocationClient.requestLocationUpdates(locationRequestHighAccuracy, it, mainLooper)
         }
     }
 

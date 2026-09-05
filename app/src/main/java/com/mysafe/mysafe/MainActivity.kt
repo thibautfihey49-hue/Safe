@@ -66,12 +66,8 @@ class MainActivity : AppCompatActivity() {
     private val smsResponseReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val msg = intent?.getStringExtra("sms_message")
-            Log.d("MySafe-UI", "📥 Récepteur appelé ! Message reçu: [$msg]")
-            if (msg != null) {
-                runOnUiThread { handleIncomingMessage(msg) }
-            } else {
-                Log.d("MySafe-UI", "⚠️ Message NULL reçu !")
-            }
+            Log.d("MySafe-UI", "📥 Réponse reçue: [$msg]")
+            if (msg != null) runOnUiThread { handleIncomingMessage(msg) }
         }
     }
 
@@ -83,7 +79,6 @@ class MainActivity : AppCompatActivity() {
         setupMap()
         setupFusedLocation()
         
-        // ✅ LE NOM DOIT ÊTRE IDENTIQUE À CELUI DU SmsReceiver !
         val intentFilter = IntentFilter("com.mysafe.mysafe.SMS_RECEIVED")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(smsResponseReceiver, intentFilter, Context.RECEIVER_NOT_EXPORTED)
@@ -91,7 +86,7 @@ class MainActivity : AppCompatActivity() {
             registerReceiver(smsResponseReceiver, intentFilter)
         }
         
-        addLog("✅ MySafe PRÊT — Récepteur actif !")
+        addLog("✅ MySafe PRÊT — Précision GPS maximale activée")
         addLog("📍 🟢 MOI | 🔴 L'AUTRE")
     }
 
@@ -123,7 +118,7 @@ class MainActivity : AppCompatActivity() {
         mapView.apply {
             setTileSource(TileSourceFactory.MAPNIK)
             setMultiTouchControls(true)
-            controller.setZoom(15.0)
+            controller.setZoom(17.0) // ✅ Zoom plus proche pour voir la précision
             controller.setCenter(DEFAULT_ANGERS)
         }
     }
@@ -134,7 +129,7 @@ class MainActivity : AppCompatActivity() {
             interval = 5000
             fastestInterval = 2000
             priority = LocationRequest.PRIORITY_HIGH_ACCURACY
-            smallestDisplacement = 5f
+            smallestDisplacement = 2f
         }
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
@@ -146,7 +141,7 @@ class MainActivity : AppCompatActivity() {
     private fun getMyPosition() {
         addLog("📍 === MA POSITION ===")
         if (!hasLocationPermission()) {
-            Toast.makeText(this, "❌ Autorise la localisation", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "❌ Autorise la position GPS précise !", Toast.LENGTH_LONG).show()
             return
         }
         fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
@@ -214,7 +209,7 @@ class MainActivity : AppCompatActivity() {
             priority = LocationRequest.PRIORITY_HIGH_ACCURACY
         }
         fusedLocationClient.requestLocationUpdates(req, locationCallback!!, mainLooper)
-        Toast.makeText(this, "⏳ Recherche...", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "⏳ Recherche position précise...", Toast.LENGTH_SHORT).show()
     }
 
     private fun isLocationValid(loc: Location): Boolean {
@@ -224,13 +219,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showMyPosition(loc: Location) {
-        addLog("📍 MOI : ${loc.latitude}, ${loc.longitude} — ${loc.accuracy.toInt()}m")
+        addLog("📍 MOI : ${loc.latitude}, ${loc.longitude} — ✅ Précision: ${loc.accuracy.toInt()}m")
         val point = GeoPoint(loc.latitude, loc.longitude)
         
         userMarker?.let { mapView.overlays.remove(it) }
         userMarker = Marker(mapView).apply {
             position = point
-            title = "🟢 MOI"
+            title = "🟢 MOI — ${loc.accuracy.toInt()}m"
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
             icon = ContextCompat.getDrawable(this@MainActivity, android.R.drawable.ic_menu_mylocation)
         }
@@ -249,11 +244,12 @@ class MainActivity : AppCompatActivity() {
             val lat = parts.getOrNull(0)?.toDoubleOrNull()
             val lon = parts.getOrNull(1)?.toDoubleOrNull()
             val alt = parts.getOrNull(2) ?: "?"
+            val accuracy = parts.getOrNull(3) ?: "?"
             
-            addLog("🔴 Lat=$lat Lon=$lon Alt=$alt")
+            addLog("🔴 Lat=$lat Lon=$lon Alt=$alt ✅ Précision: $accuracy")
             
             if (lat != null && lon != null && lat != 0.0 && lon != 0.0) {
-                showRemotePosition(lat, lon, alt)
+                showRemotePosition(lat, lon, alt, accuracy)
             } else {
                 addLog("⚠️ Coordonnées invalides !")
             }
@@ -262,7 +258,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun showRemotePosition(lat: Double, lon: Double, alt: String) {
+    private fun showRemotePosition(lat: Double, lon: Double, alt: String, accuracy: String) {
         val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
         addLog("✅ === AFFICHAGE SUR LA CARTE ===")
         
@@ -275,20 +271,20 @@ class MainActivity : AppCompatActivity() {
         
         remoteMarker = Marker(mapView).apply {
             position = point
-            title = "🔴 LUI — $time"
+            title = "🔴 LUI — $time | ✅ $accuracy"
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
             icon = ContextCompat.getDrawable(this@MainActivity, android.R.drawable.ic_menu_compass)
         }
         
         remoteMarker?.let {
             mapView.overlays.add(it)
-            addLog("✅ MARQUEUR ROUGE AJOUTÉ ! Total: ${mapView.overlays.size}")
+            addLog("✅ MARQUEUR ROUGE AJOUTÉ ! Précision: $accuracy")
         }
         
         mapView.controller.animateTo(point)
         mapView.invalidate()
         
-        Toast.makeText(this, "🔴 Position de l'autre affichée !", Toast.LENGTH_LONG).show()
+        Toast.makeText(this, "🔴 Position affichée — Précision: $accuracy", Toast.LENGTH_LONG).show()
     }
 
     private fun hasLocationPermission() =

@@ -22,7 +22,7 @@ class MySafeAgentService : Service() {
         private const val CHANNEL_ID = "MySafeService"
         private const val DISTANCE_THRESHOLD = 10f
         private const val TIME_THRESHOLD = 90000L
-        private const val SMS_DATA_ENCODING = 0x04 // ENCODING_16BIT = 4
+        private const val SMS_DATA_ENCODING: Short = 0x04 // ENCODING_16BIT = 4
     }
 
     private lateinit var locationManager: LocationManager

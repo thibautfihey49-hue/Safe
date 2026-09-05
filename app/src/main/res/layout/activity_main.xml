@@ -59,7 +59,6 @@
             android:text="⏹️ Arrêter"/>
     </LinearLayout>
 
-    <!-- 🧪 BOUTON TEST DIRECT -->
     <Button
         android:id="@+id/btnTestDirect"
         android:layout_width="match_parent"

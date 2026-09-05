@@ -14,7 +14,6 @@ class DataSMSReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != "android.provider.Telephony.SMS_RECEIVED") return
-
         val bundle = intent.extras ?: return
         val pdus = bundle.get("pdus") as? Array<*> ?: return
         val format = bundle.getString("format")
@@ -26,17 +25,11 @@ class DataSMSReceiver : BroadcastReceiver() {
                 @Suppress("DEPRECATION")
                 SmsMessage.createFromPdu(pdu as ByteArray)
             }
-
             val messageText = msg.messageBody ?: continue
-            val sender = msg.originatingAddress ?: "?"
-
-            Log.d(TAG, "📩 SMS reçu de $sender : $messageText")
-
-            // ✅ Transmettre à MainActivity via broadcast
+            Log.d(TAG, "📩 SMS reçu : $messageText")
             val forwardIntent = Intent(MySafeAgentService.SMS_RECEIVED).apply {
                 setPackage(context.packageName)
                 putExtra("sms_message", messageText)
-                putExtra("sender_number", sender)
             }
             context.sendBroadcast(forwardIntent)
         }

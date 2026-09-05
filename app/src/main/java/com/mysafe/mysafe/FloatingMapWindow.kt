@@ -13,7 +13,6 @@ import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 
 class FloatingMapWindow : Service() {
-
     private lateinit var windowManager: WindowManager
     private lateinit var floatingView: View
     private lateinit var mapView: MapView
@@ -47,20 +46,17 @@ class FloatingMapWindow : Service() {
         params.x = 20
         params.y = 100
 
-        floatingView = LayoutInflater.from(this).inflate(R.layout.floating_map, null)
-        mapView = floatingView.findViewById(R.id.floatingMapView)
+        floatingView = View(this)
+        mapView = MapView(this)
         mapView.setMultiTouchControls(true)
         mapView.controller.setZoom(14.0)
         mapView.controller.setCenter(GeoPoint(47.4728, -0.5416))
-
-        windowManager.addView(floatingView, params)
+        windowManager.addView(mapView, params)
     }
 
     override fun onBind(intent: Intent?) = null
     override fun onDestroy() {
         super.onDestroy()
-        if (::floatingView.isInitialized) {
-            windowManager.removeView(floatingView)
-        }
+        if (::mapView.isInitialized) windowManager.removeView(mapView)
     }
 }

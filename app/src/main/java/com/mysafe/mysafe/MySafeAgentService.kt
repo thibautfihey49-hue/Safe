@@ -25,12 +25,10 @@ class MySafeAgentService : Service() {
         private const val CHANNEL_ID = "MySafeService"
         private const val DISTANCE_THRESHOLD = 10f
         private const val TIME_THRESHOLD = 90000L
-        private const val SMS_DATA_ENCODING: Short = 0x04
     }
 
     private lateinit var locationManager: LocationManager
     private lateinit var smsManager: SmsManager
-    private var currentSender: String? = null
     private var isTracking = false
     private var lastLocation: Location? = null
     private var lastSendTime = 0L
@@ -49,145 +47,121 @@ class MySafeAgentService : Service() {
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         smsManager = SmsManager.getDefault()
         createSilentNotificationChannel()
-        
         if (hasLocationPermission()) {
             startForeground(NOTIF_ID, buildSilentNotification())
-        } else {
-            Log.w(TAG, "Permission localisation manquante")
         }
     }
 
     private fun hasLocationPermission(): Boolean {
         return ContextCompat.checkSelfPermission(
-            this,
-            android.Manifest.permission.ACCESS_FINE_LOCATION
+            this, android.Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED ||
         ContextCompat.checkSelfPermission(
-            this,
-            android.Manifest.permission.ACCESS_COARSE_LOCATION
+            this, android.Manifest.permission.ACCESS_COARSE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
     }
 
+    private fun normalizeNumber(num: String): String {
+        var n = num.replace("\\s".toRegex(), "").replace("-", "")
+        if (n.startsWith("0") && n.length == 10) n = "+33" + n.substring(1)
+        return n
+    }
+
+    private fun sendDirectResponse(message: String) {
+        Log.d(TAG, "📡 Réponse directe : $message")
+        val intent = Intent(SMS_RECEIVED).apply {
+            setPackage(packageName)
+            putExtra("sms_message", message)
+        }
+        sendBroadcast(intent)
+    }
+
+    private fun sendSMSResponse(target: String, message: String) {
+        try {
+            smsManager.sendTextMessage(target, null, message, null, null)
+            Log.d(TAG, "📤 SMS à $target : $message")
+        } catch (e: Exception) {
+            Log.e(TAG, "Échec SMS", e)
+        }
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        intent?.let { receivedIntent ->
-            if (receivedIntent.action == ACTION_PROCESS_COMMAND) {
-                val cmd = receivedIntent.getStringExtra("command") ?: return@let
-                val sender = receivedIntent.getStringExtra("sender_number") ?: return@let
-                currentSender = sender
-                handleCommand(cmd, sender)
+        intent?.let {
+            if (it.action == ACTION_PROCESS_COMMAND) {
+                val cmd = it.getStringExtra("command") ?: return@let
+                val target = it.getStringExtra("sender_number") ?: return@let
+                handleCommand(cmd, target)
             }
         }
         return START_STICKY
     }
 
-    private fun handleCommand(command: String, sender: String) {
+    private fun handleCommand(command: String, target: String) {
         if (!hasLocationPermission()) {
-            sendDataSMS(sender, "!!ERREUR-AUTORISATION: Accorde la localisation d'abord")
-            broadcastMessage("!!ERREUR-AUTORISATION: Accorde la localisation d'abord")
+            val msg = "!!ERREUR-AUTORISATION: Accorde la localisation"
+            sendSMSResponse(target, msg)
             return
         }
-
         when (command.uppercase()) {
-            "!!POSITION" -> sendSinglePosition(sender)
-            "!!DEMARRER" -> startContinuousTracking(sender)
-            "!!STOP" -> stopContinuousTracking(sender)
+            "!!POSITION" -> sendPosition(target)
+            "!!DEMARRER" -> startTracking(target)
+            "!!STOP" -> stopTracking(target)
         }
     }
 
-    private fun sendSinglePosition(sender: String) {
-        try {
-            val loc = getLastKnownLocation() ?: run {
-                sendDataSMS(sender, "!!POSITION_INCONNUE")
-                return
-            }
-            sendLocationResponse(sender, loc)
-        } catch (e: SecurityException) {
-            Log.e(TAG, "Permissions GPS manquantes", e)
+    private fun sendPosition(target: String) {
+        val loc = getLastKnownLocation()
+        if (loc == null) {
+            sendSMSResponse(target, "!!POSITION_INCONNUE")
+            return
         }
+        val msg = "!!${String.format("%.6f", loc.latitude)},${String.format("%.6f", loc.longitude)},${String.format("%.1f", loc.altitude)}"
+        sendSMSResponse(target, msg)
     }
 
-    private fun startContinuousTracking(sender: String) {
+    private fun startTracking(target: String) {
         if (isTracking) {
-            sendDataSMS(sender, "!!OK-SUIVI")
-            broadcastMessage("!!OK-SUIVI")
+            sendSMSResponse(target, "!!OK-SUIVI")
             return
         }
         isTracking = true
-        sendDataSMS(sender, "!!OK-SUIVI")
-        broadcastMessage("!!OK-SUIVI")
-
-        getLastKnownLocation()?.let { 
-            sendLocationResponse(sender, it)
+        sendSMSResponse(target, "!!OK-SUIVI")
+        getLastKnownLocation()?.let { loc ->
+            val msg = "!!${String.format("%.6f", loc.latitude)},${String.format("%.6f", loc.longitude)},${String.format("%.1f", loc.altitude)}"
+            sendSMSResponse(target, msg)
         }
-
         try {
             locationManager.requestLocationUpdates(
-                LocationManager.GPS_PROVIDER,
-                TIME_THRESHOLD,
-                DISTANCE_THRESHOLD,
-                locationListener
+                LocationManager.GPS_PROVIDER, TIME_THRESHOLD, DISTANCE_THRESHOLD, locationListener
             )
             locationManager.requestLocationUpdates(
-                LocationManager.NETWORK_PROVIDER,
-                TIME_THRESHOLD,
-                DISTANCE_THRESHOLD,
-                locationListener
+                LocationManager.NETWORK_PROVIDER, TIME_THRESHOLD, DISTANCE_THRESHOLD, locationListener
             )
-        } catch (e: SecurityException) {
-            Log.e(TAG, "Impossible de démarrer le GPS", e)
-        }
+        } catch (e: SecurityException) {}
     }
 
-    private fun stopContinuousTracking(sender: String) {
+    private fun stopTracking(target: String) {
         isTracking = false
         locationManager.removeUpdates(locationListener)
-        sendDataSMS(sender, "!!OK-STOP")
-        broadcastMessage("!!OK-STOP")
+        sendSMSResponse(target, "!!OK-STOP")
         lastLocation = null
     }
 
     private fun processNewLocation(location: Location) {
-        if (!isTracking || currentSender == null) return
-
+        if (!isTracking) return
         val now = System.currentTimeMillis()
         val last = lastLocation
-
         val shouldSend = when {
             last == null -> true
             location.distanceTo(last) >= DISTANCE_THRESHOLD -> true
             now - lastSendTime >= TIME_THRESHOLD -> true
             else -> false
         }
-
         if (!shouldSend) return
-
-        sendLocationResponse(currentSender!!, location)
+        val msg = "!!${String.format("%.6f", location.latitude)},${String.format("%.6f", location.longitude)},${String.format("%.1f", location.altitude)}"
+        sendDirectResponse(msg)
         lastLocation = location
         lastSendTime = now
-    }
-
-    private fun sendLocationResponse(to: String, loc: Location) {
-        val lat = String.format("%.6f", loc.latitude)
-        val lon = String.format("%.6f", loc.longitude)
-        val alt = String.format("%.1f", loc.altitude)
-        val message = "!!$lat,$lon,$alt"
-        sendDataSMS(to, message)
-        broadcastMessage(message)
-    }
-
-    private fun broadcastMessage(msg: String) {
-        val intent = Intent(SMS_RECEIVED).putExtra("sms_message", msg)
-        sendBroadcast(intent)
-    }
-
-    private fun sendDataSMS(dest: String, message: String) {
-        try {
-            val data = message.toByteArray(Charsets.UTF_16)
-            smsManager.sendDataMessage(dest, null, SMS_DATA_ENCODING, data, null, null)
-            Log.d(TAG, "SMS envoyé à $dest: $message")
-        } catch (e: Exception) {
-            Log.e(TAG, "Échec envoi SMS", e)
-        }
     }
 
     private fun getLastKnownLocation(): Location? {
@@ -198,9 +172,7 @@ class MySafeAgentService : Service() {
                     if (best == null || loc.accuracy < best!!.accuracy) best = loc
                 }
             }
-        } catch (e: SecurityException) {
-            Log.e(TAG, "Accès GPS refusé", e)
-        }
+        } catch (e: SecurityException) {}
         return best
     }
 
@@ -222,9 +194,7 @@ class MySafeAgentService : Service() {
             .setContentText("Service actif")
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setOngoing(true)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            builder.setVibrate(longArrayOf(0))
-        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) builder.setVibrate(longArrayOf(0))
         return builder.build()
     }
 

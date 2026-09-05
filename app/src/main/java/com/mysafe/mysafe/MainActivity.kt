@@ -40,7 +40,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private lateinit var btnTestDirect: Button
 
     private lateinit var locationManager: LocationManager
-    private var isGpsTracking = false
+    private var myPhoneNumber: String = ""
 
     private val PERMS = arrayOf(
         Manifest.permission.INTERNET,
@@ -60,7 +60,6 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private val smsReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             intent?.getStringExtra("sms_message")?.let { msg ->
-                android.util.Log.d("MainActivity", "📨 SMS reçu : $msg")
                 runOnUiThread { handleIncomingMessage(msg) }
             }
         }
@@ -82,7 +81,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
             registerReceiver(smsReceiver, filter)
         }
 
-        addLog("✅ Prête — clique 📍 POSITION ou 🧪 TEST DIRECT")
+        addLog("✅ Prête — pas de SMS dans ta boîte !")
     }
 
     private fun initViews() {
@@ -122,41 +121,54 @@ class MainActivity : AppCompatActivity(), LocationListener {
         locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
     }
 
-    // 🧪 TEST SANS SMS — Récupère directement TA position GPS
+    private fun normalizeNumber(num: String): String {
+        var n = num.replace("\\s".toRegex(), "").replace("-", "")
+        if (n.startsWith("0") && n.length == 10) n = "+33" + n.substring(1)
+        return n
+    }
+
+    private fun isMyNumber(target: String): Boolean {
+        val my = normalizeNumber(myPhoneNumber)
+        val t = normalizeNumber(target)
+        return my.isNotEmpty() && (t == my || t == my.replace("+33", "0") || my == t.replace("+33", "0"))
+    }
+
     private fun testDirectPosition() {
-        addLog("🧪 TEST DIRECT — Récupération position GPS...")
-        
+        addLog("🧪 Récupération position GPS...")
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) 
             != PackageManager.PERMISSION_GRANTED) {
             addLog("❌ Permission GPS manquante !")
             return
         }
-
         val loc = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
             ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-
         if (loc != null) {
             addPosition(loc.latitude, loc.longitude, String.format("%.1f", loc.altitude))
-            addLog("✅ Position trouvée directement !")
+            addLog("✅ Position trouvée !")
         } else {
-            addLog("⚠️ Position inconnue — active le GPS et bouge un peu")
-            // Demander une mise à jour
+            addLog("⚠️ Position inconnue — active le GPS")
             locationManager.requestSingleUpdate(LocationManager.GPS_PROVIDER, this, null)
-            Toast.makeText(this, "⏳ Attente position GPS...", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "⏳ Attente GPS...", Toast.LENGTH_LONG).show()
         }
     }
 
     override fun onLocationChanged(location: Location) {
         runOnUiThread {
             addPosition(location.latitude, location.longitude, String.format("%.1f", location.altitude))
-            addLog("✅ Position GPS reçue en temps réel !")
+            addLog("✅ Position GPS reçue !")
         }
     }
 
     private fun sendCommand(cmd: String) {
         val num = etTargetNumber.text.toString().trim()
         if (num.isEmpty()) {
-            Toast.makeText(this, "⚠️ Entrez un numéro d'abord !", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "⚠️ Entrez un numéro", Toast.LENGTH_SHORT).show()
+            return
+        }
+        myPhoneNumber = num
+        if (isMyNumber(num)) {
+            addLog("📡 Mode local — 0 SMS ✅")
+            handleLocalCommand(cmd)
             return
         }
         val svc = Intent(this, MySafeAgentService::class.java).apply {
@@ -165,11 +177,45 @@ class MainActivity : AppCompatActivity(), LocationListener {
             putExtra("command", cmd)
         }
         ContextCompat.startForegroundService(this, svc)
-        addLog("📤 Commande envoyée : $cmd → $num")
+        addLog("📤 Commande envoyée à $num : $cmd")
+    }
+
+    private fun handleLocalCommand(cmd: String) {
+        when (cmd.uppercase()) {
+            "!!POSITION" -> getLocalPosition()
+            "!!DEMARRER" -> startLocalTracking()
+            "!!STOP" -> stopLocalTracking()
+        }
+    }
+
+    private fun getLocalPosition() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) 
+            != PackageManager.PERMISSION_GRANTED) {
+            addLog("❌ Permission GPS manquante")
+            return
+        }
+        val loc = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+            ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+        if (loc != null) {
+            val msg = "!!${String.format("%.6f", loc.latitude)},${String.format("%.6f", loc.longitude)},${String.format("%.1f", loc.altitude)}"
+            handleIncomingMessage(msg)
+        } else {
+            addLog("⚠️ Position inconnue")
+        }
+    }
+
+    private fun startLocalTracking() {
+        addLog("✅ Suivi démarré (mode local)")
+        Toast.makeText(this, "✅ Suivi démarré", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun stopLocalTracking() {
+        addLog("✅ Suivi arrêté")
+        Toast.makeText(this, "✅ Suivi arrêté", Toast.LENGTH_SHORT).show()
     }
 
     private fun handleIncomingMessage(msg: String) {
-        addLog("📩 SMS reçu : $msg")
+        addLog("📩 Réponse : $msg")
         when {
             msg.startsWith("!!OK-") -> Toast.makeText(this, "✅ $msg", Toast.LENGTH_SHORT).show()
             msg.startsWith("!!ERREUR") -> Toast.makeText(this, "⚠️ $msg", Toast.LENGTH_LONG).show()
@@ -187,7 +233,6 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private fun addPosition(lat: Double, lon: Double, alt: String) {
         val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
         tvPositions.text = "📍 $time\n   Lat: $lat\n   Lon: $lon\n   Alt: $alt m\n\n${tvPositions.text}"
-
         val point = GeoPoint(lat, lon)
         mapView.overlays.add(Marker(mapView).apply {
             position = point

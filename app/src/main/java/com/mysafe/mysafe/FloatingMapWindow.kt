@@ -1,29 +1,66 @@
 package com.mysafe.mysafe
+
 import android.app.Service
 import android.content.Context
+import android.content.Intent
 import android.graphics.PixelFormat
 import android.os.Build
-import android.view.*
+import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.View
+import android.view.WindowManager
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 
 class FloatingMapWindow : Service() {
-    private lateinit var wm: WindowManager
+
+    private lateinit var windowManager: WindowManager
+    private lateinit var floatingView: View
+    private lateinit var mapView: MapView
+
     override fun onCreate() {
         super.onCreate()
-        wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        val view = LayoutInflater.from(this).inflate(R.layout.floating_map, null)
-        val params = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-            WindowManager.LayoutParams(WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT)
-        else @Suppress("DEPRECATION") WindowManager.LayoutParams(WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT)
-        params.gravity = Gravity.TOP or Gravity.END; params.x = 20; params.y = 100
-        view.findViewById<MapView>(R.id.floatingMapView).apply {
-            setMultiTouchControls(true); controller.setZoom(14.0); controller.setCenter(GeoPoint(47.4728, -0.5416))
-        }
-        wm.addView(view, params)
+        windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        createFloatingWindow()
     }
-    override fun onBind(i: Intent?) = null
+
+    private fun createFloatingWindow() {
+        val params = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                PixelFormat.TRANSLUCENT
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_PHONE,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                PixelFormat.TRANSLUCENT
+            )
+        }
+        params.gravity = Gravity.TOP or Gravity.END
+        params.x = 20
+        params.y = 100
+
+        floatingView = LayoutInflater.from(this).inflate(R.layout.floating_map, null)
+        mapView = floatingView.findViewById(R.id.floatingMapView)
+        mapView.setMultiTouchControls(true)
+        mapView.controller.setZoom(14.0)
+        mapView.controller.setCenter(GeoPoint(47.4728, -0.5416))
+
+        windowManager.addView(floatingView, params)
+    }
+
+    override fun onBind(intent: Intent?) = null
+    override fun onDestroy() {
+        super.onDestroy()
+        if (::floatingView.isInitialized) {
+            windowManager.removeView(floatingView)
+        }
+    }
 }

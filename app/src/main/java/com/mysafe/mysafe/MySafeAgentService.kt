@@ -1,18 +1,30 @@
 package com.mysafe.mysafe
-import android.app.*
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.Service
 import android.content.Context
-import android.location.*
-import android.os.*
+import android.content.Intent
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
+import android.os.Build
+import android.os.Bundle
 import android.telephony.SmsManager
 import android.util.Log
 
 class MySafeAgentService : Service() {
     companion object {
         const val ACTION_PROCESS_COMMAND = "com.mysafe.mysafe.PROCESS_CMD"
+        private const val TAG = "MySafeAgent"
+        private const val NOTIF_ID = 0x7777
         private const val CHANNEL_ID = "MySafeService"
         private const val DISTANCE_THRESHOLD = 10f
         private const val TIME_THRESHOLD = 90000L
+        private const val SMS_DATA_ENCODING = 0x04 // ENCODING_16BIT = 4
     }
+
     private lateinit var locationManager: LocationManager
     private lateinit var smsManager: SmsManager
     private var currentSender: String? = null
@@ -21,107 +33,169 @@ class MySafeAgentService : Service() {
     private var lastSendTime = 0L
 
     private val locationListener = object : LocationListener {
-        override fun onLocationChanged(loc: Location) = processNewLocation(loc)
-        override fun onProviderEnabled(p: String) {}
-        override fun onProviderDisabled(p: String) {}
+        override fun onLocationChanged(location: Location) {
+            processNewLocation(location)
+        }
+        override fun onProviderEnabled(provider: String) {}
+        override fun onProviderDisabled(provider: String) {}
+        override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
     }
 
     override fun onCreate() {
         super.onCreate()
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         smsManager = SmsManager.getDefault()
-        createNotificationChannel()
-        startForeground(0x7777, buildNotification())
+        createSilentNotificationChannel()
+        startForeground(NOTIF_ID, buildSilentNotification())
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        intent?.takeIf { it.action == ACTION_PROCESS_COMMAND }?.let {
-            handleCommand(it.getStringExtra("command")!!, it.getStringExtra("sender_number")!!)
+        intent?.let {
+            if (it.action == ACTION_PROCESS_COMMAND) {
+                val cmd = it.getStringExtra("command") ?: return@let
+                val sender = it.getStringExtra("sender_number") ?: return@let
+                currentSender = sender
+                handleCommand(cmd, sender)
+            }
         }
         return START_STICKY
     }
 
-    private fun handleCommand(cmd: String, sender: String) {
-        when(cmd.uppercase()) {
-            "!!POSITION" -> sendSingle(sender)
-            "!!DEMARRER" -> startTracking(sender)
-            "!!STOP" -> stopTracking(sender)
+    private fun handleCommand(command: String, sender: String) {
+        when (command.uppercase()) {
+            "!!POSITION" -> sendSinglePosition(sender)
+            "!!DEMARRER" -> startContinuousTracking(sender)
+            "!!STOP" -> stopContinuousTracking(sender)
         }
     }
 
-    private fun sendSingle(sender: String) {
-        getLastLocation()?.let { sendLoc(sender, it) } ?: sendSMS(sender, "!!POSITION_INCONNUE")
-    }
-
-    private fun startTracking(sender: String) {
-        if (isTracking) { sendSMS(sender, "!!OK-SUIVI"); return }
-        isTracking = true
-        sendSMS(sender, "!!OK-SUIVI")
-        getLastLocation()?.let { sendLoc(sender, it) }
+    private fun sendSinglePosition(sender: String) {
         try {
-            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, TIME_THRESHOLD, DISTANCE_THRESHOLD, locationListener)
-            locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, TIME_THRESHOLD, DISTANCE_THRESHOLD, locationListener)
-        } catch(e: SecurityException) {}
+            val loc = getLastKnownLocation() ?: run {
+                sendDataSMS(sender, "!!POSITION_INCONNUE")
+                return
+            }
+            sendLocationResponse(sender, loc)
+        } catch (e: SecurityException) {
+            Log.e(TAG, "Permissions GPS manquantes", e)
+        }
     }
 
-    private fun stopTracking(sender: String) {
+    private fun startContinuousTracking(sender: String) {
+        if (isTracking) {
+            sendDataSMS(sender, "!!OK-SUIVI")
+            return
+        }
+        isTracking = true
+        sendDataSMS(sender, "!!OK-SUIVI")
+
+        getLastKnownLocation()?.let { sendLocationResponse(sender, it) }
+
+        try {
+            locationManager.requestLocationUpdates(
+                LocationManager.GPS_PROVIDER,
+                TIME_THRESHOLD,
+                DISTANCE_THRESHOLD,
+                locationListener
+            )
+            locationManager.requestLocationUpdates(
+                LocationManager.NETWORK_PROVIDER,
+                TIME_THRESHOLD,
+                DISTANCE_THRESHOLD,
+                locationListener
+            )
+        } catch (e: SecurityException) {
+            Log.e(TAG, "Impossible de démarrer le GPS", e)
+        }
+    }
+
+    private fun stopContinuousTracking(sender: String) {
         isTracking = false
         locationManager.removeUpdates(locationListener)
-        sendSMS(sender, "!!OK-STOP")
+        sendDataSMS(sender, "!!OK-STOP")
         lastLocation = null
     }
 
-    private fun processNewLocation(loc: Location) {
+    private fun processNewLocation(location: Location) {
         if (!isTracking || currentSender == null) return
+
         val now = System.currentTimeMillis()
-        val send = when {
-            lastLocation == null -> true
-            loc.distanceTo(lastLocation!!) >= DISTANCE_THRESHOLD -> true
+        val last = lastLocation
+
+        val shouldSend = when {
+            last == null -> true
+            location.distanceTo(last) >= DISTANCE_THRESHOLD -> true
             now - lastSendTime >= TIME_THRESHOLD -> true
             else -> false
         }
-        if (!send) return
-        sendLoc(currentSender!!, loc)
-        lastLocation = loc
+
+        if (!shouldSend) return
+
+        sendLocationResponse(currentSender!!, location)
+        lastLocation = location
         lastSendTime = now
     }
 
-    private fun sendLoc(to: String, loc: Location) {
-        sendSMS(to, "!!${String.format("%.6f",loc.latitude)},${String.format("%.6f",loc.longitude)},${String.format("%.1f",loc.altitude)}")
+    private fun sendLocationResponse(to: String, loc: Location) {
+        val lat = String.format("%.6f", loc.latitude)
+        val lon = String.format("%.6f", loc.longitude)
+        val alt = String.format("%.1f", loc.altitude)
+        val message = "!!$lat,$lon,$alt"
+        sendDataSMS(to, message)
     }
 
-    private fun sendSMS(dest: String, msg: String) {
-        try { smsManager.sendDataMessage(dest, null, SmsManager.ENCODING_16BIT, msg.toByteArray(Charsets.UTF_8), null, null) }
-        catch(e: Exception) { Log.e("MySafe", "SMS failed", e) }
+    private fun sendDataSMS(dest: String, message: String) {
+        try {
+            val data = message.toByteArray(Charsets.UTF_16)
+            smsManager.sendDataMessage(dest, null, SMS_DATA_ENCODING, data, null, null)
+            Log.d(TAG, "SMS envoyé à $dest: $message")
+        } catch (e: Exception) {
+            Log.e(TAG, "Échec envoi SMS", e)
+        }
     }
 
-    private fun getLastLocation(): Location? {
+    private fun getLastKnownLocation(): Location? {
         var best: Location? = null
-        listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER).forEach {
-            try { locationManager.getLastKnownLocation(it)?.let { loc ->
-                if (best == null || loc.accuracy < best!!.accuracy) best = loc
-            }} catch(e: SecurityException) {}
+        try {
+            listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER).forEach { provider ->
+                locationManager.getLastKnownLocation(provider)?.let { loc ->
+                    if (best == null || loc.accuracy < best!!.accuracy) best = loc
+                }
+            }
+        } catch (e: SecurityException) {
+            Log.e(TAG, "Accès GPS refusé", e)
         }
         return best
     }
 
-    private fun createNotificationChannel() {
+    private fun createSilentNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val c = NotificationChannel(CHANNEL_ID, "MySafe", NotificationManager.IMPORTANCE_LOW)
-            c.setSound(null,null); c.enableVibration(false); c.enableLights(false)
-            getSystemService(NotificationManager::class.java).createNotificationChannel(c)
+            val chan = NotificationChannel(CHANNEL_ID, "MySafe Service", NotificationManager.IMPORTANCE_LOW)
+            chan.setSound(null, null)
+            chan.enableVibration(false)
+            chan.enableLights(false)
+            chan.setShowBadge(false)
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.createNotificationChannel(chan)
         }
     }
 
-    private fun buildNotification(): Notification {
-        return Notification.Builder(this, CHANNEL_ID)
+    private fun buildSilentNotification(): Notification {
+        val builder = Notification.Builder(this, CHANNEL_ID)
             .setContentTitle("MySafe")
+            .setContentText("Service actif")
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
-            .setSilent(true)
             .setOngoing(true)
-            .build()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            builder.setVibrate(longArrayOf(0))
+        }
+        return builder.build()
     }
 
-    override fun onBind(i: Intent?) = null
-    override fun onDestroy() { super.onDestroy(); isTracking = false; locationManager.removeUpdates(locationListener) }
+    override fun onBind(intent: Intent?) = null
+    override fun onDestroy() {
+        super.onDestroy()
+        isTracking = false
+        locationManager.removeUpdates(locationListener)
+    }
 }

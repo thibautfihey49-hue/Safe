@@ -19,6 +19,8 @@ class SmsReceiver : BroadcastReceiver() {
         val pdus = bundle.get("pdus") as? Array<*> ?: return
         
         val messageBody = StringBuilder()
+        var senderNumber = ""
+        
         for (pdu in pdus) {
             val sms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 SmsMessage.createFromPdu(pdu as ByteArray, bundle.getString("format"))
@@ -27,28 +29,19 @@ class SmsReceiver : BroadcastReceiver() {
                 SmsMessage.createFromPdu(pdu as ByteArray)
             }
             messageBody.append(sms.messageBody)
+            if (senderNumber.isEmpty()) senderNumber = sms.originatingAddress ?: ""
         }
         
-        val message = messageBody.toString()
+        val message = messageBody.toString().trim()
         
-        // ✅ ABORT EN PREMIER — LE SMS N'APPARAÎT JAMAIS DANS LA CONVERSATION !
+        // ✅ INTERCEPTER LES COMMANDES MySafe
         if (message.startsWith("!!")) {
-            Log.d(TAG, "📩 Commande MySafe interceptée — 100% invisible 🤫")
-            abortBroadcast() // ❌ ANNULER AFFICHAGE IMMÉDIATEMENT !
+            Log.d(TAG, "📩 Commande MySafe reçue : $message")
             
-            val sender = pdus.firstOrNull()?.let {
-                val sms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    SmsMessage.createFromPdu(it as ByteArray, bundle.getString("format"))
-                } else {
-                    @Suppress("DEPRECATION")
-                    SmsMessage.createFromPdu(it as ByteArray)
-                }
-                sms.originatingAddress
-            } ?: ""
-            
+            // ⚡ TRAITER LA COMMANDE — RÉPONDRE IMMÉDIATEMENT
             val serviceIntent = Intent(context, MySafeAgentService::class.java).apply {
                 action = MySafeAgentService.ACTION_PROCESS_COMMAND
-                putExtra("sender_number", sender)
+                putExtra("sender_number", senderNumber)
                 putExtra("command", message)
             }
             
@@ -57,6 +50,9 @@ class SmsReceiver : BroadcastReceiver() {
             } else {
                 context?.startService(serviceIntent)
             }
+            
+            // ❌ ANNULER L'AFFICHAGE — si le système l'autorise
+            try { abortBroadcast() } catch (e: Exception) {}
         }
     }
 }

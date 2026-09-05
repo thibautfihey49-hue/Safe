@@ -64,7 +64,8 @@ class MainActivity : AppCompatActivity() {
 
     private val smsReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            intent?.getStringExtra("sms_message")?.let { runOnUiThread { handleIncomingMessage(it) } }
+            val msg = intent?.getStringExtra("sms_message") ?: return
+            runOnUiThread { handleIncomingMessage(msg) }
         }
     }
 
@@ -75,9 +76,16 @@ class MainActivity : AppCompatActivity() {
         checkPerms()
         setupMap()
         setupFusedLocation()
-        registerReceiver(smsReceiver, IntentFilter(MySafeAgentService.SMS_RECEIVED), if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) RECEIVER_NOT_EXPORTED else 0)
-        addLog("✅ MySafe PRÊT — Mode discret ACTIF 🤫")
-        addLog("📍 🟢 MOI = marqueur vert | 🔴 LUI = marqueur rouge")
+        
+        // ✅ ENREGISTRER LE RÉCEPTEUR POUR LES RÉPONSES DE POSITION
+        registerReceiver(
+            smsReceiver,
+            IntentFilter(MySafeAgentService.SMS_RECEIVED),
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) Context.RECEIVER_NOT_EXPORTED else 0
+        )
+        
+        addLog("✅ MySafe PRÊT")
+        addLog("📍 🟢 MOI | 🔴 L'AUTRE")
     }
 
     private fun initViews() {
@@ -129,20 +137,24 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun getMyPosition() {
-        addLog("🧪 === MA POSITION ===")
+        addLog("📍 === MA POSITION ===")
         if (!hasLocationPermission()) {
             Toast.makeText(this, "❌ Autorise la localisation", Toast.LENGTH_LONG).show()
             return
         }
         fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
-            if (loc != null && isLocationValid(loc)) showMyPosition(loc) else requestFreshLocation()
-        }.addOnFailureListener { requestFreshLocation() }
+            if (loc != null && isLocationValid(loc)) {
+                showMyPosition(loc)
+            } else {
+                requestFreshLocation()
+            }
+        }
     }
 
     private fun askHisPosition() {
         val num = etTargetNumber.text.toString().trim()
         if (num.isEmpty()) {
-            Toast.makeText(this, "⚠️ Entre LE NUMÉRO DE L'AUTRE !", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "⚠️ Entre le numéro de l'autre !", Toast.LENGTH_SHORT).show()
             return
         }
         targetPhoneNumber = normalizeNumber(num)
@@ -155,7 +167,7 @@ class MainActivity : AppCompatActivity() {
             putExtra("command", "!!POSITION")
         }
         ContextCompat.startForegroundService(this, svc)
-        Toast.makeText(this, "📩 Demande envoyée ! Attends la réponse...", Toast.LENGTH_LONG).show()
+        Toast.makeText(this, "📩 Demande envoyée !", Toast.LENGTH_LONG).show()
     }
 
     private fun startTracking() {
@@ -169,7 +181,7 @@ class MainActivity : AppCompatActivity() {
             putExtra("command", "!!DEMARRER")
         }
         ContextCompat.startForegroundService(this, svc)
-        Toast.makeText(this, "✅ Suivi demandé !", Toast.LENGTH_LONG).show()
+        Toast.makeText(this, "✅ Suivi démarré !", Toast.LENGTH_LONG).show()
     }
 
     private fun stopTracking() {
@@ -189,7 +201,11 @@ class MainActivity : AppCompatActivity() {
     private fun requestFreshLocation() {
         if (!hasLocationPermission()) return
         locationCallback?.let { fusedLocationClient.removeLocationUpdates(it) }
-        val req = LocationRequest.create().apply { numUpdates = 1; expirationTime = 15000; priority = LocationRequest.PRIORITY_HIGH_ACCURACY }
+        val req = LocationRequest.create().apply { 
+            numUpdates = 1
+            expirationTime = 15000
+            priority = LocationRequest.PRIORITY_HIGH_ACCURACY
+        }
         fusedLocationClient.requestLocationUpdates(req, locationCallback!!, mainLooper)
         Toast.makeText(this, "⏳ Recherche...", Toast.LENGTH_SHORT).show()
     }
@@ -203,6 +219,7 @@ class MainActivity : AppCompatActivity() {
     private fun showMyPosition(loc: Location) {
         addLog("📍 MOI : ${loc.latitude}, ${loc.longitude} — ${loc.accuracy.toInt()}m")
         val point = GeoPoint(loc.latitude, loc.longitude)
+        
         userMarker?.let { mapView.overlays.remove(it) }
         userMarker = Marker(mapView).apply {
             position = point
@@ -213,27 +230,23 @@ class MainActivity : AppCompatActivity() {
         mapView.overlays.add(userMarker)
         mapView.controller.animateTo(point)
         mapView.invalidate()
-        locationCallback?.let { fusedLocationClient.removeLocationUpdates(it) }
     }
 
     private fun handleIncomingMessage(msg: String) {
         addLog("📩 REÇU : $msg")
-        when {
-            msg.startsWith("!!") && msg.contains(",") -> {
-                val cleanMsg = msg.removePrefix("!!")
-                val parts = cleanMsg.split(",")
-                val lat = parts.getOrNull(0)?.toDoubleOrNull()
-                val lon = parts.getOrNull(1)?.toDoubleOrNull()
-                val alt = parts.getOrNull(2) ?: "?"
-                
-                if (lat != null && lon != null && !(lat == 0.0 && lon == 0.0)) {
-                    showRemotePosition(lat, lon, alt)
-                } else {
-                    addLog("⚠️ Coordonnées invalides : lat=$lat, lon=$lon")
-                }
+        
+        if (msg.startsWith("!!") && msg.contains(",")) {
+            val clean = msg.removePrefix("!!")
+            val parts = clean.split(",")
+            val lat = parts.getOrNull(0)?.toDoubleOrNull()
+            val lon = parts.getOrNull(1)?.toDoubleOrNull()
+            val alt = parts.getOrNull(2) ?: "?"
+            
+            if (lat != null && lon != null && lat != 0.0 && lon != 0.0) {
+                showRemotePosition(lat, lon, alt)
+            } else {
+                addLog("⚠️ Coordonnées invalides")
             }
-            msg.startsWith("!!OK-") -> Toast.makeText(this, "✅ $msg", Toast.LENGTH_SHORT).show()
-            msg.startsWith("!!ERREUR") -> Toast.makeText(this, "⚠️ $msg", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -243,13 +256,10 @@ class MainActivity : AppCompatActivity() {
         
         val point = GeoPoint(lat, lon)
         
-        // Supprimer l'ancien marqueur s'il existe
-        remoteMarker?.let { 
-            mapView.overlays.remove(it)
-            addLog("🗑️ Ancien marqueur supprimé")
-        }
+        // Supprimer ancien marqueur
+        remoteMarker?.let { mapView.overlays.remove(it) }
         
-        // Créer le NOUVEAU marqueur
+        // Créer nouveau marqueur ROUGE
         remoteMarker = Marker(mapView).apply {
             position = point
             title = "🔴 LUI — $time"
@@ -257,22 +267,20 @@ class MainActivity : AppCompatActivity() {
             icon = ContextCompat.getDrawable(this@MainActivity, android.R.drawable.ic_menu_compass)
         }
         
-        // Ajouter à la carte
+        // Ajouter et forcer le rafraîchissement
         remoteMarker?.let {
             mapView.overlays.add(it)
-            addLog("✅ Marqueur ajouté sur la carte !")
+            addLog("✅ MARQUEUR AJOUTÉ ! Total marqueurs: ${mapView.overlays.size}")
         }
         
-        // Déplacer la caméra
         mapView.controller.animateTo(point)
         mapView.invalidate()
         
-        Toast.makeText(this, "🔴 Position de l'autre reçue !", Toast.LENGTH_LONG).show()
+        Toast.makeText(this, "🔴 Position affichée sur la carte !", Toast.LENGTH_LONG).show()
     }
 
     private fun hasLocationPermission() =
-        ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
-        ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
     private fun normalizeNumber(s: String) = s.replace("\\s".toRegex(), "").replace("-", "").let {
         if (it.startsWith("0") && it.length == 10) "+33${it.substring(1)}" else it
@@ -303,7 +311,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun checkPerms() {
-        val missing = PERMS.filter { ActivityCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }.toTypedArray()
+        val missing = PERMS.filter { 
+            ActivityCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED 
+        }.toTypedArray()
         if (missing.isNotEmpty()) ActivityCompat.requestPermissions(this, missing, 1001)
     }
 

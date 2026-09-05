@@ -38,28 +38,19 @@
             android:exported="false"
             android:foregroundServiceType="location" />
 
-        <receiver
-            android:name=".BootReceiver"
-            android:exported="true">
+        <receiver android:name=".BootReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </receiver>
 
-        <!-- ✅ PRIORITÉ MAX pour intercepter les SMS EN PREMIER -->
-        <receiver
-            android:name=".SmsReceiver"
-            android:exported="true"
-            android:permission="android.permission.BROADCAST_SMS">
+        <receiver android:name=".SmsReceiver" android:exported="true">
             <intent-filter android:priority="999">
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
-                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </receiver>
 
-        <service
-            android:name=".FloatingMapWindow"
-            android:exported="false" />
+        <service android:name=".FloatingMapWindow" android:exported="false" />
     </application>
 </manifest>

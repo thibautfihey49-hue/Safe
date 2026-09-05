@@ -14,7 +14,6 @@ import org.osmdroid.views.MapView
 
 class FloatingMapWindow : Service() {
     private lateinit var windowManager: WindowManager
-    private lateinit var floatingView: View
     private lateinit var mapView: MapView
 
     override fun onCreate() {
@@ -26,8 +25,8 @@ class FloatingMapWindow : Service() {
     private fun createFloatingWindow() {
         val params = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
+                600,
+                400,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT
@@ -35,8 +34,8 @@ class FloatingMapWindow : Service() {
         } else {
             @Suppress("DEPRECATION")
             WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
+                600,
+                400,
                 WindowManager.LayoutParams.TYPE_PHONE,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT
@@ -46,7 +45,6 @@ class FloatingMapWindow : Service() {
         params.x = 20
         params.y = 100
 
-        floatingView = View(this)
         mapView = MapView(this)
         mapView.setMultiTouchControls(true)
         mapView.controller.setZoom(14.0)

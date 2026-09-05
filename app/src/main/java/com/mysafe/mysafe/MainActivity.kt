@@ -42,7 +42,6 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private lateinit var locationManager: LocationManager
     private var myPhoneNumber: String = ""
 
-    // ✅ Ajout POST_NOTIFICATIONS pour Android 13+
     private val PERMS = mutableListOf(
         Manifest.permission.INTERNET,
         Manifest.permission.ACCESS_NETWORK_STATE,
@@ -85,7 +84,8 @@ class MainActivity : AppCompatActivity(), LocationListener {
             registerReceiver(smsReceiver, filter)
         }
 
-        addLog("✅ Prête — clique DÉMARRER pour lancer le suivi")
+        addLog("✅ Application prête !")
+        addLog("👉 Entre un numéro et clique DÉMARRER")
     }
 
     private fun initViews() {
@@ -138,53 +138,69 @@ class MainActivity : AppCompatActivity(), LocationListener {
     }
 
     private fun testDirectPosition() {
-        addLog("🧪 Récupération position GPS...")
+        addLog("🧪 === TEST POSITION DIRECT ===")
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) 
             != PackageManager.PERMISSION_GRANTED) {
-            addLog("❌ Permission GPS manquante !")
+            addLog("❌ ERREUR : Permission GPS manquante !")
+            addLog("👉 Va dans Paramètres → Applications → MySafe → Localisation → TOUJOURS")
+            Toast.makeText(this, "❌ Permission GPS manquante !", Toast.LENGTH_LONG).show()
             return
         }
+        addLog("✅ Permission GPS OK")
+        
         val loc = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
             ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+        
         if (loc != null) {
-            addPosition(loc.latitude, loc.longitude, String.format("%.1f", loc.altitude))
             addLog("✅ Position trouvée !")
+            addPosition(loc.latitude, loc.longitude, String.format("%.1f", loc.altitude))
         } else {
-            addLog("⚠️ Position inconnue — active le GPS et attends")
-            locationManager.requestSingleUpdate(LocationManager.GPS_PROVIDER, this, null)
-            Toast.makeText(this, "⏳ Attente GPS...", Toast.LENGTH_LONG).show()
+            addLog("⚠️ Aucune position connue")
+            addLog("👉 Active le GPS et va près d'une fenêtre/dehors")
+            addLog("👉 Réessaie dans 30 secondes")
+            Toast.makeText(this, "⏳ GPS recherche... Réessaie dans 30s", Toast.LENGTH_LONG).show()
         }
     }
 
     override fun onLocationChanged(location: Location) {
         runOnUiThread {
-            addPosition(location.latitude, location.longitude, String.format("%.1f", location.altitude))
             addLog("✅ Position GPS reçue !")
+            addPosition(location.latitude, location.longitude, String.format("%.1f", location.altitude))
         }
     }
 
     private fun sendCommand(cmd: String) {
         val num = etTargetNumber.text.toString().trim()
         if (num.isEmpty()) {
-            Toast.makeText(this, "⚠️ Entrez un numéro", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "⚠️ Entre un numéro d'abord !", Toast.LENGTH_SHORT).show()
             return
         }
         myPhoneNumber = num
         
+        addLog("========================================")
+        addLog("📤 COMMANDE : $cmd → $num")
+        
         if (isMyNumber(num)) {
-            addLog("📡 Mode local — 0 SMS ✅")
+            addLog("✅ Mode local détecté — 0 SMS")
             handleLocalCommand(cmd)
             return
         }
         
+        addLog("📡 Démarrage service...")
         val svc = Intent(this, MySafeAgentService::class.java).apply {
             action = MySafeAgentService.ACTION_PROCESS_COMMAND
             putExtra("sender_number", num)
             putExtra("command", cmd)
         }
-        ContextCompat.startForegroundService(this, svc)
-        addLog("📤 Commande envoyée à $num : $cmd")
-        Toast.makeText(this, "✅ Service démarré — vérifie la notification 🔔", Toast.LENGTH_LONG).show()
+        try {
+            ContextCompat.startForegroundService(this, svc)
+            addLog("✅ Service démarré !")
+            addLog("🔔 Vérifie la barre de notification !")
+            Toast.makeText(this, "✅ Service démarré — 🔔 Notification visible", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            addLog("❌ ERREUR démarrage service : ${e.message}")
+            Toast.makeText(this, "❌ Erreur : ${e.message}", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun handleLocalCommand(cmd: String) {
@@ -196,6 +212,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
     }
 
     private fun getLocalPosition() {
+        addLog("📍 Demande position locale...")
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) 
             != PackageManager.PERMISSION_GRANTED) {
             addLog("❌ Permission GPS manquante")
@@ -212,22 +229,37 @@ class MainActivity : AppCompatActivity(), LocationListener {
     }
 
     private fun startLocalTracking() {
-        addLog("✅ Suivi démarré (mode local)")
-        Toast.makeText(this, "✅ Suivi démarré — notification visible 🔔", Toast.LENGTH_LONG).show()
+        addLog("▶️ DÉMARRAGE SUIVI LOCAL...")
         val svc = Intent(this, MySafeAgentService::class.java)
-        ContextCompat.startForegroundService(this, svc)
+        try {
+            ContextCompat.startForegroundService(this, svc)
+            addLog("✅ Service de suivi démarré !")
+            addLog("🔔 Notification visible dans la barre en haut")
+            Toast.makeText(this, "✅ SUIVI DÉMARRÉ — 🔔 Notification visible", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            addLog("❌ ERREUR : ${e.message}")
+            Toast.makeText(this, "❌ Erreur : ${e.message}", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun stopLocalTracking() {
+        addLog("⏹️ ARRÊT SUIVI...")
+        stopService(Intent(this, MySafeAgentService::class.java))
         addLog("✅ Suivi arrêté")
-        Toast.makeText(this, "✅ Suivi arrêté", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "✅ SUIVI ARRÊTÉ", Toast.LENGTH_SHORT).show()
     }
 
     private fun handleIncomingMessage(msg: String) {
-        addLog("📩 Réponse : $msg")
+        addLog("📩 Réponse reçue : $msg")
         when {
-            msg.startsWith("!!OK-") -> Toast.makeText(this, "✅ $msg", Toast.LENGTH_SHORT).show()
-            msg.startsWith("!!ERREUR") -> Toast.makeText(this, "⚠️ $msg", Toast.LENGTH_LONG).show()
+            msg.startsWith("!!OK-") -> {
+                addLog("✅ Confirmation : $msg")
+                Toast.makeText(this, "✅ $msg", Toast.LENGTH_SHORT).show()
+            }
+            msg.startsWith("!!ERREUR") -> {
+                addLog("❌ ERREUR : $msg")
+                Toast.makeText(this, "⚠️ $msg", Toast.LENGTH_LONG).show()
+            }
             msg.startsWith("!!") && msg.contains(",") -> {
                 val parts = msg.removePrefix("!!").split(",")
                 val lat = parts[0].toDoubleOrNull()
@@ -250,7 +282,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
         })
         mapView.controller.animateTo(point)
         mapView.invalidate()
-        Toast.makeText(this, "📍 Marqueur ajouté !", Toast.LENGTH_SHORT).show()
+        addLog("✅ Marqueur ajouté sur la carte !")
     }
 
     private fun addLog(text: String) {
@@ -277,7 +309,12 @@ class MainActivity : AppCompatActivity(), LocationListener {
         val missing = PERMS.filter {
             ActivityCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }.toTypedArray()
-        if (missing.isNotEmpty()) ActivityCompat.requestPermissions(this, missing, 1001)
+        if (missing.isNotEmpty()) {
+            addLog("⚠️ Demande de permissions...")
+            ActivityCompat.requestPermissions(this, missing, 1001)
+        } else {
+            addLog("✅ Toutes permissions accordées")
+        }
     }
 
     override fun onDestroy() {

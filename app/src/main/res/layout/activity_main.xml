@@ -4,16 +4,17 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:padding="16dp"
-    android:background="#F5F5F5">
+    android:background="#FFFFFF">
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="📍 MySafe — GPS Tracking"
-        android:textSize="20sp"
+        android:textSize="22sp"
         android:textStyle="bold"
         android:gravity="center"
-        android:padding="16dp"/>
+        android:textColor="#000000"
+        android:padding="12dp"/>
 
     <EditText
         android:id="@+id/etTargetNumber"
@@ -21,51 +22,59 @@
         android:layout_height="wrap_content"
         android:hint="📞 Numéro cible (+336...)"
         android:inputType="phone"
-        android:layout_marginBottom="12dp"/>
+        android:textColor="#000000"
+        android:textColorHint="#666666"
+        android:background="#F0F0F0"
+        android:padding="12dp"
+        android:layout_marginBottom="16dp"/>
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:layout_marginBottom="8dp">
+        android:layout_marginBottom="12dp">
 
         <Button
             android:id="@+id/btnPosition"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="55dp"
             android:layout_weight="1"
             android:layout_marginEnd="4dp"
             android:backgroundTint="#FF9800"
             android:textColor="#FFFFFF"
-            android:text="📍 Position"/>
+            android:textSize="14sp"
+            android:text="📍 POSITION"/>
 
         <Button
             android:id="@+id/btnDemarrer"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="55dp"
             android:layout_weight="1"
             android:layout_marginEnd="4dp"
             android:backgroundTint="#4CAF50"
             android:textColor="#FFFFFF"
-            android:text="▶️ Démarrer"/>
+            android:textSize="14sp"
+            android:text="▶️ DÉMARRER"/>
 
         <Button
             android:id="@+id/btnStop"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="55dp"
             android:layout_weight="1"
             android:backgroundTint="#F44336"
             android:textColor="#FFFFFF"
-            android:text="⏹️ Arrêter"/>
+            android:textSize="14sp"
+            android:text="⏹️ ARRÊTER"/>
     </LinearLayout>
 
     <Button
         android:id="@+id/btnTestDirect"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="8dp"
+        android:layout_height="55dp"
+        android:layout_marginBottom="12dp"
         android:backgroundTint="#2196F3"
         android:textColor="#FFFFFF"
+        android:textSize="14sp"
         android:text="🧪 TESTER MA POSITION DIRECTEMENT"/>
 
     <LinearLayout
@@ -77,21 +86,23 @@
         <Button
             android:id="@+id/btnFloatingMap"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="50dp"
             android:layout_weight="1"
             android:layout_marginEnd="4dp"
             android:backgroundTint="#673AB7"
             android:textColor="#FFFFFF"
-            android:text="📌 Carte flottante"/>
+            android:textSize="13sp"
+            android:text="📌 CARTE FLOTTANTE"/>
 
         <Button
             android:id="@+id/btnClearHistory"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="50dp"
             android:layout_weight="1"
             android:backgroundTint="#607D8B"
             android:textColor="#FFFFFF"
-            android:text="🗑️ Effacer carte"/>
+            android:textSize="13sp"
+            android:text="🗑️ EFFACER CARTE"/>
     </LinearLayout>
 
     <TextView
@@ -99,21 +110,25 @@
         android:layout_height="wrap_content"
         android:text="📋 Journal :"
         android:textStyle="bold"
+        android:textColor="#000000"
+        android:textSize="15sp"
         android:layout_marginBottom="4dp"/>
 
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:layout_marginBottom="8dp">
+        android:layout_marginBottom="8dp"
+        android:background="#F9F9F9"
+        android:padding="8dp">
 
         <TextView
             android:id="@+id/tvPositions"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:padding="8dp"
-            android:background="#FFFFFF"
-            android:textSize="11sp"
+            android:textColor="#000000"
+            android:textSize="12sp"
+            android:lineSpacingExtra="4dp"
             android:text=""/>
     </ScrollView>
 

@@ -15,6 +15,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import org.osmdroid.config.Configuration
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
@@ -35,6 +36,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnClearHistory: Button
 
     private val PERMS = arrayOf(
+        Manifest.permission.INTERNET,
+        Manifest.permission.ACCESS_NETWORK_STATE,
         Manifest.permission.SEND_SMS,
         Manifest.permission.RECEIVE_SMS,
         Manifest.permission.ACCESS_FINE_LOCATION,
@@ -61,7 +64,6 @@ class MainActivity : AppCompatActivity() {
         checkPerms()
         setupMap()
 
-        // ✅ Correction : Ajout du drapeau RECEIVER_NOT_EXPORTED pour Android 13+
         val filter = IntentFilter(MySafeAgentService.SMS_RECEIVED)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(smsReceiver, filter, RECEIVER_NOT_EXPORTED)
@@ -88,15 +90,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupMap() {
+        // ✅ Configuration complète OSMdroid
         Configuration.getInstance().apply {
-            osmdroidBasePath = File(cacheDir, "osmdroid")
-            osmdroidTileCache = File(cacheDir, "osmdroid/tiles")
+            osmdroidBasePath = File(getExternalFilesDir(null), "osmdroid")
+            osmdroidTileCache = File(getExternalFilesDir(null), "osmdroid/tiles")
+            userAgentValue = "MySafe-App" // ✅ Obligatoire pour OpenStreetMap
         }
+
         mapView.apply {
+            setTileSource(TileSourceFactory.MAPNIK) // ✅ Source de tuiles OSM
             setMultiTouchControls(true)
             controller.setZoom(15.0)
-            controller.setCenter(GeoPoint(47.4728, -0.5416))
+            controller.setCenter(GeoPoint(47.4728, -0.5416)) // Angers
+            visibility = android.view.View.VISIBLE
         }
+
+        Toast.makeText(this, "🗺️ Carte en chargement... Vérifiez votre connexion Internet", Toast.LENGTH_LONG).show()
     }
 
     private fun sendCommand(cmd: String) {

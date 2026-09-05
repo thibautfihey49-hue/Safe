@@ -3,6 +3,9 @@ package com.mysafe.mysafe
 import android.Manifest
 import android.content.*
 import android.content.pm.PackageManager
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -24,7 +27,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), LocationListener {
 
     private lateinit var mapView: MapView
     private lateinit var etTargetNumber: EditText
@@ -34,6 +37,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnStop: Button
     private lateinit var btnFloatingMap: Button
     private lateinit var btnClearHistory: Button
+    private lateinit var btnTestDirect: Button
+
+    private lateinit var locationManager: LocationManager
+    private var isGpsTracking = false
 
     private val PERMS = arrayOf(
         Manifest.permission.INTERNET,
@@ -53,7 +60,7 @@ class MainActivity : AppCompatActivity() {
     private val smsReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             intent?.getStringExtra("sms_message")?.let { msg ->
-                android.util.Log.d("MainActivity", "📨 Message reçu dans l'activité : $msg")
+                android.util.Log.d("MainActivity", "📨 SMS reçu : $msg")
                 runOnUiThread { handleIncomingMessage(msg) }
             }
         }
@@ -66,6 +73,7 @@ class MainActivity : AppCompatActivity() {
         initViews()
         checkPerms()
         setupMap()
+        setupGps()
 
         val filter = IntentFilter(MySafeAgentService.SMS_RECEIVED)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -74,7 +82,7 @@ class MainActivity : AppCompatActivity() {
             registerReceiver(smsReceiver, filter)
         }
 
-        addLog("✅ Appli prête — entrez un numéro et cliquez sur 📍 Position")
+        addLog("✅ Prête — clique 📍 POSITION ou 🧪 TEST DIRECT")
     }
 
     private fun initViews() {
@@ -86,12 +94,14 @@ class MainActivity : AppCompatActivity() {
         btnStop = findViewById(R.id.btnStop)
         btnFloatingMap = findViewById(R.id.btnFloatingMap)
         btnClearHistory = findViewById(R.id.btnClearHistory)
+        btnTestDirect = findViewById(R.id.btnTestDirect)
 
         btnPosition.setOnClickListener { sendCommand("!!POSITION") }
         btnDemarrer.setOnClickListener { sendCommand("!!DEMARRER") }
         btnStop.setOnClickListener { sendCommand("!!STOP") }
         btnFloatingMap.setOnClickListener { openFloatingMap() }
         btnClearHistory.setOnClickListener { clearMap() }
+        btnTestDirect.setOnClickListener { testDirectPosition() }
     }
 
     private fun setupMap() {
@@ -100,16 +110,47 @@ class MainActivity : AppCompatActivity() {
             osmdroidTileCache = File(getExternalFilesDir(null), "osmdroid/tiles")
             userAgentValue = "MySafe-App"
         }
-
         mapView.apply {
             setTileSource(TileSourceFactory.MAPNIK)
             setMultiTouchControls(true)
             controller.setZoom(15.0)
-            controller.setCenter(GeoPoint(47.4728, -0.5416)) // Angers
-            visibility = android.view.View.VISIBLE
+            controller.setCenter(GeoPoint(47.4728, -0.5416))
+        }
+    }
+
+    private fun setupGps() {
+        locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
+    }
+
+    // 🧪 TEST SANS SMS — Récupère directement TA position GPS
+    private fun testDirectPosition() {
+        addLog("🧪 TEST DIRECT — Récupération position GPS...")
+        
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) 
+            != PackageManager.PERMISSION_GRANTED) {
+            addLog("❌ Permission GPS manquante !")
+            return
         }
 
-        Toast.makeText(this, "🗺️ Carte initialisée", Toast.LENGTH_SHORT).show()
+        val loc = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+            ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+
+        if (loc != null) {
+            addPosition(loc.latitude, loc.longitude, String.format("%.1f", loc.altitude))
+            addLog("✅ Position trouvée directement !")
+        } else {
+            addLog("⚠️ Position inconnue — active le GPS et bouge un peu")
+            // Demander une mise à jour
+            locationManager.requestSingleUpdate(LocationManager.GPS_PROVIDER, this, null)
+            Toast.makeText(this, "⏳ Attente position GPS...", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    override fun onLocationChanged(location: Location) {
+        runOnUiThread {
+            addPosition(location.latitude, location.longitude, String.format("%.1f", location.altitude))
+            addLog("✅ Position GPS reçue en temps réel !")
+        }
     }
 
     private fun sendCommand(cmd: String) {
@@ -124,64 +165,38 @@ class MainActivity : AppCompatActivity() {
             putExtra("command", cmd)
         }
         ContextCompat.startForegroundService(this, svc)
-        addLog("📤 Commande envoyée à $num : $cmd")
-        Toast.makeText(this, "✅ Commande envoyée", Toast.LENGTH_SHORT).show()
+        addLog("📤 Commande envoyée : $cmd → $num")
     }
 
     private fun handleIncomingMessage(msg: String) {
-        addLog("📩 Réponse reçue : $msg")
-
+        addLog("📩 SMS reçu : $msg")
         when {
-            msg.startsWith("!!OK-") -> {
-                Toast.makeText(this, "✅ $msg", Toast.LENGTH_SHORT).show()
-            }
-            msg.startsWith("!!ERREUR-") -> {
-                Toast.makeText(this, "⚠️ $msg", Toast.LENGTH_LONG).show()
-            }
+            msg.startsWith("!!OK-") -> Toast.makeText(this, "✅ $msg", Toast.LENGTH_SHORT).show()
+            msg.startsWith("!!ERREUR") -> Toast.makeText(this, "⚠️ $msg", Toast.LENGTH_LONG).show()
             msg.startsWith("!!") && msg.contains(",") -> {
-                val data = msg.removePrefix("!!").trim()
-                val parts = data.split(",")
-                android.util.Log.d("MainActivity", "Parsing : ${parts.size} parties -> $parts")
-
-                if (parts.size >= 2) {
-                    try {
-                        val lat = parts[0].toDoubleOrNull()
-                        val lon = parts[1].toDoubleOrNull()
-                        val alt = if (parts.size > 2) parts[2] else "?"
-
-                        if (lat != null && lon != null) {
-                            addPosition(lat, lon, alt ?: "?")
-                            Toast.makeText(this, "📍 Position ajoutée !", Toast.LENGTH_SHORT).show()
-                        } else {
-                            addLog("❌ Coordonnés invalides : lat=$lat, lon=$lon")
-                        }
-                    } catch (e: Exception) {
-                        addLog("❌ Erreur parsing : ${e.message}")
-                    }
-                } else {
-                    addLog("❌ Format invalide : $msg")
+                val parts = msg.removePrefix("!!").split(",")
+                val lat = parts[0].toDoubleOrNull()
+                val lon = parts[1].toDoubleOrNull()
+                if (lat != null && lon != null) {
+                    addPosition(lat, lon, if (parts.size > 2) parts[2] else "?")
                 }
             }
-            else -> addLog("📩 Message : $msg")
         }
     }
 
     private fun addPosition(lat: Double, lon: Double, alt: String) {
         val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-        val log = "📍 $time\n   Lat: $lat\n   Lon: $lon\n   Alt: $alt m\n\n"
-        tvPositions.text = "$log${tvPositions.text}"
+        tvPositions.text = "📍 $time\n   Lat: $lat\n   Lon: $lon\n   Alt: $alt m\n\n${tvPositions.text}"
 
         val point = GeoPoint(lat, lon)
-        val marker = Marker(mapView).apply {
+        mapView.overlays.add(Marker(mapView).apply {
             position = point
-            title = "$time - $lat / $lon"
+            title = "$time"
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-        }
-        mapView.overlays.add(marker)
+        })
         mapView.controller.animateTo(point)
         mapView.invalidate()
-
-        android.util.Log.d("MainActivity", "✅ Marqueur ajouté : $lat, $lon")
+        Toast.makeText(this, "📍 Marqueur ajouté !", Toast.LENGTH_SHORT).show()
     }
 
     private fun addLog(text: String) {
@@ -193,27 +208,22 @@ class MainActivity : AppCompatActivity() {
         mapView.overlays.clear()
         mapView.invalidate()
         tvPositions.text = ""
-        addLog("🗑️ Carte et historique effacés")
-        Toast.makeText(this, "🗑️ Effacé", Toast.LENGTH_SHORT).show()
+        addLog("🗑️ Carte effacée")
     }
 
     private fun openFloatingMap() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
             startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
-            Toast.makeText(this, "Autorisez l'affichage par-dessus les apps", Toast.LENGTH_LONG).show()
             return
         }
         startService(Intent(this, FloatingMapWindow::class.java))
-        Toast.makeText(this, "📌 Carte flottante ouverte", Toast.LENGTH_SHORT).show()
     }
 
     private fun checkPerms() {
         val missing = PERMS.filter {
             ActivityCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }.toTypedArray()
-        if (missing.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, missing, 1001)
-        }
+        if (missing.isNotEmpty()) ActivityCompat.requestPermissions(this, missing, 1001)
     }
 
     override fun onDestroy() {

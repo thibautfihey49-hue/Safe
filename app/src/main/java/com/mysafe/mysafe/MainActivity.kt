@@ -17,6 +17,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.google.android.gms.location.*
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
@@ -27,7 +28,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-class MainActivity : AppCompatActivity(), LocationListener {
+class MainActivity : AppCompatActivity() {
 
     private lateinit var mapView: MapView
     private lateinit var etTargetNumber: EditText
@@ -39,8 +40,12 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private lateinit var btnClearHistory: Button
     private lateinit var btnTestDirect: Button
 
-    private lateinit var locationManager: LocationManager
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private lateinit var locationRequest: LocationRequest
+    private var locationCallback: LocationCallback? = null
+    private var userMarker: Marker? = null
     private var myPhoneNumber: String = ""
+    private val DEFAULT_ANGERS = GeoPoint(47.4728, -0.5416)
 
     private val PERMS = mutableListOf(
         Manifest.permission.INTERNET,
@@ -75,7 +80,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
         initViews()
         checkPerms()
         setupMap()
-        setupGps()
+        setupFusedLocation()  // ✅ Google Location Services !
 
         val filter = IntentFilter(MySafeAgentService.SMS_RECEIVED)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -84,8 +89,8 @@ class MainActivity : AppCompatActivity(), LocationListener {
             registerReceiver(smsReceiver, filter)
         }
 
-        addLog("✅ Application prête !")
-        addLog("👉 Entre un numéro et clique DÉMARRER")
+        addLog("✅ Application prête — avec Google Location Services !")
+        addLog("📍 Carte centrée sur Angers")
     }
 
     private fun initViews() {
@@ -104,7 +109,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
         btnStop.setOnClickListener { sendCommand("!!STOP") }
         btnFloatingMap.setOnClickListener { openFloatingMap() }
         btnClearHistory.setOnClickListener { clearMap() }
-        btnTestDirect.setOnClickListener { testDirectPosition() }
+        btnTestDirect.setOnClickListener { getInstantPosition() }
     }
 
     private fun setupMap() {
@@ -117,12 +122,123 @@ class MainActivity : AppCompatActivity(), LocationListener {
             setTileSource(TileSourceFactory.MAPNIK)
             setMultiTouchControls(true)
             controller.setZoom(15.0)
-            controller.setCenter(GeoPoint(47.4728, -0.5416))
+            controller.setCenter(DEFAULT_ANGERS)
         }
     }
 
-    private fun setupGps() {
-        locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
+    // ✅ NOUVEAU : Configuration Google Fused Location
+    private fun setupFusedLocation() {
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        
+        locationRequest = LocationRequest.create().apply {
+            interval = 5000          // Mise à jour toutes les 5s
+            fastestInterval = 2000   // Jusqu'à toutes les 2s
+            priority = LocationRequest.PRIORITY_HIGH_ACCURACY  // ✅ Meilleure précision
+            smallestDisplacement = 5f  // Mise à jour si déplacement de 5m
+        }
+
+        locationCallback = object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                result.lastLocation?.let { loc ->
+                    handleNewLocation(loc)
+                }
+            }
+        }
+    }
+
+    // ✅ OBTENIR POSITION INSTANTANÉE (comme les autres apps !)
+    private fun getInstantPosition() {
+        addLog("🧪 === RÉCUPÉRATION POSITION (GOOGLE) ===")
+        
+        if (!hasLocationPermission()) {
+            addLog("❌ Permission localisation manquante")
+            Toast.makeText(this, "❌ Autorise la localisation d'abord", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        addLog("⏳ Récupération de la position...")
+        
+        // ✅ D'abord : la DERNIÈRE position connue (instantané !)
+        fusedLocationClient.lastLocation
+            .addOnSuccessListener { location: Location? ->
+                if (location != null && isLocationValid(location)) {
+                    addLog("✅ Position trouvée (dernière connue) !")
+                    handleNewLocation(location)
+                } else {
+                    addLog("⚠️ Position connue trop ancienne — demande position fraîche...")
+                    requestFreshLocation()
+                }
+            }
+            .addOnFailureListener { e ->
+                addLog("❌ Erreur : ${e.message}")
+                Toast.makeText(this, "❌ ${e.message}", Toast.LENGTH_LONG).show()
+            }
+    }
+
+    // ✅ Demander une position FRAÎCHE
+    private fun requestFreshLocation() {
+        if (!hasLocationPermission()) return
+        
+        fusedLocationClient.getCurrentLocation(
+            LocationRequest.create().apply {
+                priority = LocationRequest.PRIORITY_HIGH_ACCURACY
+                numUpdates = 1
+                expirationTime = 15000  // 15s max
+            },
+            null
+        ).addOnSuccessListener { location: Location? ->
+            if (location != null && isLocationValid(location)) {
+                addLog("✅ Position fraîche obtenue !")
+                handleNewLocation(location)
+            } else {
+                addLog("❌ Impossible d'obtenir une position")
+                addLog("💡 Vérifie : GPS ON + Données mobiles/Wi-Fi ON")
+                Toast.makeText(this, "❌ Position introuvable", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    // ✅ Vérifier que la position n'est pas (0,0) ou trop vieille
+    private fun isLocationValid(loc: Location): Boolean {
+        val isZero = loc.latitude == 0.0 && loc.longitude == 0.0
+        val age = System.currentTimeMillis() - loc.time
+        val isTooOld = age > 24 * 60 * 60 * 1000  // > 24h
+        
+        return !isZero && !isTooOld
+    }
+
+    private fun handleNewLocation(loc: Location) {
+        addLog("📍 Coordonnées : ${loc.latitude}, ${loc.longitude}")
+        addLog("📊 Précision : ${loc.accuracy.toInt()}m | Source : ${loc.provider}")
+        
+        val point = GeoPoint(loc.latitude, loc.longitude)
+        
+        // Supprimer ancien marqueur
+        userMarker?.let { mapView.overlays.remove(it) }
+        
+        // Ajouter nouveau marqueur
+        userMarker = Marker(mapView).apply {
+            position = point
+            title = "📍 Tu es ici !"
+            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+            icon = ContextCompat.getDrawable(this@MainActivity, android.R.drawable.ic_menu_mylocation)
+        }
+        mapView.overlays.add(userMarker)
+        
+        // Centrer la carte
+        mapView.controller.animateTo(point)
+        mapView.invalidate()
+        
+        Toast.makeText(this, "📍 Position trouvée !", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun hasLocationPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            this, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED ||
+        ContextCompat.checkSelfPermission(
+            this, Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
     }
 
     private fun normalizeNumber(num: String): String {
@@ -135,38 +251,6 @@ class MainActivity : AppCompatActivity(), LocationListener {
         val my = normalizeNumber(myPhoneNumber)
         val t = normalizeNumber(target)
         return my.isNotEmpty() && (t == my || t == my.replace("+33", "0") || my == t.replace("+33", "0"))
-    }
-
-    private fun testDirectPosition() {
-        addLog("🧪 === TEST POSITION DIRECT ===")
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) 
-            != PackageManager.PERMISSION_GRANTED) {
-            addLog("❌ ERREUR : Permission GPS manquante !")
-            addLog("👉 Va dans Paramètres → Applications → MySafe → Localisation → TOUJOURS")
-            Toast.makeText(this, "❌ Permission GPS manquante !", Toast.LENGTH_LONG).show()
-            return
-        }
-        addLog("✅ Permission GPS OK")
-        
-        val loc = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-            ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-        
-        if (loc != null) {
-            addLog("✅ Position trouvée !")
-            addPosition(loc.latitude, loc.longitude, String.format("%.1f", loc.altitude))
-        } else {
-            addLog("⚠️ Aucune position connue")
-            addLog("👉 Active le GPS et va près d'une fenêtre/dehors")
-            addLog("👉 Réessaie dans 30 secondes")
-            Toast.makeText(this, "⏳ GPS recherche... Réessaie dans 30s", Toast.LENGTH_LONG).show()
-        }
-    }
-
-    override fun onLocationChanged(location: Location) {
-        runOnUiThread {
-            addLog("✅ Position GPS reçue !")
-            addPosition(location.latitude, location.longitude, String.format("%.1f", location.altitude))
-        }
     }
 
     private fun sendCommand(cmd: String) {
@@ -195,36 +279,17 @@ class MainActivity : AppCompatActivity(), LocationListener {
         try {
             ContextCompat.startForegroundService(this, svc)
             addLog("✅ Service démarré !")
-            addLog("🔔 Vérifie la barre de notification !")
-            Toast.makeText(this, "✅ Service démarré — 🔔 Notification visible", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "✅ Service démarré", Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
-            addLog("❌ ERREUR démarrage service : ${e.message}")
-            Toast.makeText(this, "❌ Erreur : ${e.message}", Toast.LENGTH_LONG).show()
+            addLog("❌ ERREUR : ${e.message}")
         }
     }
 
     private fun handleLocalCommand(cmd: String) {
         when (cmd.uppercase()) {
-            "!!POSITION" -> getLocalPosition()
+            "!!POSITION" -> getInstantPosition()
             "!!DEMARRER" -> startLocalTracking()
             "!!STOP" -> stopLocalTracking()
-        }
-    }
-
-    private fun getLocalPosition() {
-        addLog("📍 Demande position locale...")
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) 
-            != PackageManager.PERMISSION_GRANTED) {
-            addLog("❌ Permission GPS manquante")
-            return
-        }
-        val loc = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-            ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-        if (loc != null) {
-            val msg = "!!${String.format("%.6f", loc.latitude)},${String.format("%.6f", loc.longitude)},${String.format("%.1f", loc.altitude)}"
-            handleIncomingMessage(msg)
-        } else {
-            addLog("⚠️ Position inconnue")
         }
     }
 
@@ -234,11 +299,9 @@ class MainActivity : AppCompatActivity(), LocationListener {
         try {
             ContextCompat.startForegroundService(this, svc)
             addLog("✅ Service de suivi démarré !")
-            addLog("🔔 Notification visible dans la barre en haut")
-            Toast.makeText(this, "✅ SUIVI DÉMARRÉ — 🔔 Notification visible", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "✅ SUIVI DÉMARRÉ", Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
             addLog("❌ ERREUR : ${e.message}")
-            Toast.makeText(this, "❌ Erreur : ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -252,37 +315,33 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private fun handleIncomingMessage(msg: String) {
         addLog("📩 Réponse reçue : $msg")
         when {
-            msg.startsWith("!!OK-") -> {
-                addLog("✅ Confirmation : $msg")
-                Toast.makeText(this, "✅ $msg", Toast.LENGTH_SHORT).show()
-            }
-            msg.startsWith("!!ERREUR") -> {
-                addLog("❌ ERREUR : $msg")
-                Toast.makeText(this, "⚠️ $msg", Toast.LENGTH_LONG).show()
-            }
+            msg.startsWith("!!OK-") -> Toast.makeText(this, "✅ $msg", Toast.LENGTH_SHORT).show()
+            msg.startsWith("!!ERREUR") -> Toast.makeText(this, "⚠️ $msg", Toast.LENGTH_LONG).show()
             msg.startsWith("!!") && msg.contains(",") -> {
                 val parts = msg.removePrefix("!!").split(",")
                 val lat = parts[0].toDoubleOrNull()
                 val lon = parts[1].toDoubleOrNull()
-                if (lat != null && lon != null) {
-                    addPosition(lat, lon, if (parts.size > 2) parts[2] else "?")
+                if (lat != null && lon != null && !(lat == 0.0 && lon == 0.0)) {
+                    addPositionFromRemote(lat, lon, if (parts.size > 2) parts[2] else "?")
                 }
             }
         }
     }
 
-    private fun addPosition(lat: Double, lon: Double, alt: String) {
+    private fun addPositionFromRemote(lat: Double, lon: Double, alt: String) {
         val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-        tvPositions.text = "📍 $time\n   Lat: $lat\n   Lon: $lon\n   Alt: $alt m\n\n${tvPositions.text}"
+        addLog("📍 Position distante : $lat, $lon — Alt: $alt m")
+        
         val point = GeoPoint(lat, lon)
-        mapView.overlays.add(Marker(mapView).apply {
+        userMarker?.let { mapView.overlays.remove(it) }
+        userMarker = Marker(mapView).apply {
             position = point
-            title = "$time"
+            title = "📍 $time"
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-        })
+        }
+        mapView.overlays.add(userMarker)
         mapView.controller.animateTo(point)
         mapView.invalidate()
-        addLog("✅ Marqueur ajouté sur la carte !")
     }
 
     private fun addLog(text: String) {
@@ -291,6 +350,8 @@ class MainActivity : AppCompatActivity(), LocationListener {
     }
 
     private fun clearMap() {
+        userMarker?.let { mapView.overlays.remove(it) }
+        userMarker = null
         mapView.overlays.clear()
         mapView.invalidate()
         tvPositions.text = ""
@@ -320,5 +381,8 @@ class MainActivity : AppCompatActivity(), LocationListener {
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(smsReceiver)
+        locationCallback?.let { callback ->
+            fusedLocationClient.removeLocationUpdates(callback)
+        }
     }
 }

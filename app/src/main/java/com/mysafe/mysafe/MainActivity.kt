@@ -79,10 +79,13 @@ class MainActivity : AppCompatActivity() {
         setupMap()
         setupFusedLocation()
         
-        registerReceiver(
-            smsResponseReceiver,
-            IntentFilter(MySafeAgentService.SMS_RECEIVED)
-        )
+        // ✅ CORRECTION ICI : Ajouter le flag pour Android 13+
+        val intentFilter = IntentFilter(MySafeAgentService.SMS_RECEIVED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(smsResponseReceiver, intentFilter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(smsResponseReceiver, intentFilter)
+        }
         
         addLog("✅ MySafe PRÊT — Récepteur actif !")
         addLog("📍 🟢 MOI | 🔴 L'AUTRE")

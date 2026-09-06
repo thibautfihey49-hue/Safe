@@ -96,7 +96,7 @@ class MainActivity : AppCompatActivity() {
         setupFusedLocation()
         setupSecretPanel()
         
-        registerReceiver(smsReceiver, IntentFilter("com.mysafe.mysafe.SMS_RECEIVED"))
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { registerReceiver(smsReceiver, IntentFilter("com.mysafe.mysafe.SMS_RECEIVED"), RECEIVER_NOT_EXPORTED) } else { registerReceiver(smsReceiver, IntentFilter("com.mysafe.mysafe.SMS_RECEIVED")) }
         CameraStreamService.statusCallback = { runOnUiThread { tvStreamStatus.text = it } }
         
         addLog("✅ MySafe PRÊT — 5x sur le titre pour caméra")

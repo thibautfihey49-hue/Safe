@@ -14,7 +14,6 @@
 
         <!-- Titre -->
         <TextView
-            android:id="@+id/tvTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="MySafe GPS"
@@ -49,7 +48,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gap="12dp"
             android:layout_marginBottom="12dp">
 
             <Button
@@ -61,7 +59,8 @@
                 android:textSize="16sp"
                 android:textStyle="bold"
                 android:backgroundTint="#6A00C9"
-                android:textColor="#FFFFFF"/>
+                android:textColor="#FFFFFF"
+                android:layout_marginEnd="6dp"/>
 
             <Button
                 android:id="@+id/btnGetHisPosition"
@@ -72,7 +71,8 @@
                 android:textSize="16sp"
                 android:textStyle="bold"
                 android:backgroundTint="#6A00C9"
-                android:textColor="#FFFFFF"/>
+                android:textColor="#FFFFFF"
+                android:layout_marginStart="6dp"/>
         </LinearLayout>
 
         <!-- Ligne 2 : Suivi / Stop -->
@@ -80,7 +80,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gap="12dp"
             android:layout_marginBottom="12dp">
 
             <Button
@@ -92,7 +91,8 @@
                 android:textSize="16sp"
                 android:textStyle="bold"
                 android:backgroundTint="#6A00C9"
-                android:textColor="#FFFFFF"/>
+                android:textColor="#FFFFFF"
+                android:layout_marginEnd="6dp"/>
 
             <Button
                 android:id="@+id/btnStop"
@@ -103,7 +103,8 @@
                 android:textSize="16sp"
                 android:textStyle="bold"
                 android:backgroundTint="#6A00C9"
-                android:textColor="#FFFFFF"/>
+                android:textColor="#FFFFFF"
+                android:layout_marginStart="6dp"/>
         </LinearLayout>
 
         <!-- Ligne 3 : Carte flottante / Effacer -->
@@ -111,7 +112,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gap="12dp"
             android:layout_marginBottom="16dp">
 
             <Button
@@ -123,7 +123,8 @@
                 android:textSize="16sp"
                 android:textStyle="bold"
                 android:backgroundTint="#6A00C9"
-                android:textColor="#FFFFFF"/>
+                android:textColor="#FFFFFF"
+                android:layout_marginEnd="6dp"/>
 
             <Button
                 android:id="@+id/btnClearHistory"
@@ -134,7 +135,8 @@
                 android:textSize="16sp"
                 android:textStyle="bold"
                 android:backgroundTint="#6A00C9"
-                android:textColor="#FFFFFF"/>
+                android:textColor="#FFFFFF"
+                android:layout_marginStart="6dp"/>
         </LinearLayout>
 
         <!-- Journal -->
@@ -159,7 +161,7 @@
             android:layout_marginBottom="20dp"/>
 
         <!-- ────────────────────────────── -->
-        <!-- 🎥 STREAMING CAMÉRA — TOUT VISIBLE -->
+        <!-- 🎥 STREAMING CAMÉRA -->
         <!-- ────────────────────────────── -->
         <TextView
             android:layout_width="wrap_content"
@@ -184,7 +186,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gap="12dp"
             android:layout_marginBottom="16dp">
 
             <Button
@@ -196,7 +197,8 @@
                 android:textSize="15sp"
                 android:textStyle="bold"
                 android:backgroundTint="#444444"
-                android:textColor="#FFFFFF"/>
+                android:textColor="#FFFFFF"
+                android:layout_marginEnd="6dp"/>
 
             <Button
                 android:id="@+id/btnCamBack"
@@ -207,7 +209,8 @@
                 android:textSize="15sp"
                 android:textStyle="bold"
                 android:backgroundTint="#006633"
-                android:textColor="#FFFFFF"/>
+                android:textColor="#FFFFFF"
+                android:layout_marginStart="6dp"/>
         </LinearLayout>
 
         <!-- Son/Micro -->
@@ -224,7 +227,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gap="12dp"
             android:layout_marginBottom="16dp">
 
             <Button
@@ -236,7 +238,8 @@
                 android:textSize="14sp"
                 android:textStyle="bold"
                 android:backgroundTint="#444444"
-                android:textColor="#FFFFFF"/>
+                android:textColor="#FFFFFF"
+                android:layout_marginEnd="6dp"/>
 
             <Button
                 android:id="@+id/btnSpeakToggle"
@@ -247,7 +250,8 @@
                 android:textSize="14sp"
                 android:textStyle="bold"
                 android:backgroundTint="#444444"
-                android:textColor="#FFFFFF"/>
+                android:textColor="#FFFFFF"
+                android:layout_marginStart="6dp"/>
         </LinearLayout>
 
         <!-- Contrôles stream -->
@@ -255,7 +259,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gap="12dp"
             android:layout_marginBottom="16dp">
 
             <Button
@@ -267,7 +270,8 @@
                 android:textSize="15sp"
                 android:textStyle="bold"
                 android:backgroundTint="#009933"
-                android:textColor="#FFFFFF"/>
+                android:textColor="#FFFFFF"
+                android:layout_marginEnd="6dp"/>
 
             <Button
                 android:id="@+id/btnStopStream"
@@ -278,7 +282,8 @@
                 android:textSize="15sp"
                 android:textStyle="bold"
                 android:backgroundTint="#CC0000"
-                android:textColor="#FFFFFF"/>
+                android:textColor="#FFFFFF"
+                android:layout_marginStart="6dp"/>
         </LinearLayout>
 
         <!-- Aperçu caméra -->

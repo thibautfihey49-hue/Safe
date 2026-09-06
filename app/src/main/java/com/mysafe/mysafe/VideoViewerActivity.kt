@@ -21,20 +21,19 @@ class VideoViewerActivity : AppCompatActivity() {
         ivVideo = findViewById(R.id.ivVideo)
         tvStatus = findViewById(R.id.tvVideoStatus)
         
-        tvStatus.text = "📹 En attente du flux..."
+        tvStatus.text = "En attente du flux..."
         
-        // Réception des frames vidéo du service
-        PermanentStreamService.frameCallback = { bytes, w, h ->
-            if (!estActif) return@frameCallback
+        PermanentStreamService.frameListener = { bytes, w, h ->
+            if (!estActif) return@frameListener
             runOnUiThread {
                 try {
                     val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                     if (bitmap != null) {
                         ivVideo.setImageBitmap(bitmap)
-                        tvStatus.text = "📹🔊 EN DIRECT — ${w}x${h}"
+                        tvStatus.text = "EN DIRECT — ${w}x${h}"
                     }
                 } catch (e: Exception) {
-                    tvStatus.text = "⚠️ Erreur image: ${e.message}"
+                    tvStatus.text = "Erreur image: ${e.message}"
                 }
             }
         }
@@ -43,7 +42,7 @@ class VideoViewerActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         estActif = false
-        PermanentStreamService.frameCallback = null
+        PermanentStreamService.frameListener = null
     }
 
     fun fermerVue(v: View) {

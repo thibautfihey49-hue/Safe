@@ -3,55 +3,86 @@ package com.mysafe.mysafe
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.os.Build
-import android.telephony.SmsMessage
+import android.provider.Telephony
+import android.telephony.SmsManager
 import android.util.Log
 
 class SmsReceiver : BroadcastReceiver() {
     companion object {
-        private const val TAG = "MySafe-SMS"
-        var myPhoneNumber: String? = null
+        var myPhoneNumber: String = ""
     }
 
-    override fun onReceive(context: Context?, intent: Intent?) {
-        if (intent?.action != "android.provider.Telephony.SMS_RECEIVED") return
-        val bundle = intent.extras ?: return
-        val pdus = bundle.get("pdus") as? Array<*> ?: return
-        
-        val body = StringBuilder(); var sender = ""
-        for (pdu in pdus) {
-            val sms = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
-                SmsMessage.createFromPdu(pdu as ByteArray, bundle.getString("format"))
-            else @Suppress("DEPRECATION") SmsMessage.createFromPdu(pdu as ByteArray)
-            body.append(sms.messageBody)
-            if (sender.isEmpty()) sender = sms.originatingAddress ?: ""
-        }
-        
-        val msg = body.toString().trim()
-        Log.d(TAG, "📩 SMS de [$sender] : [$msg]")
+    override fun onReceive(context: Context, intent: Intent) {
+        if (!Telephony.Sms.Intents.SMS_RECEIVED_ACTION.equals(intent.action)) return
 
-        if (myPhoneNumber != null && normalize(sender) == normalize(myPhoneNumber)) {
-            Log.d(TAG, "🚫 Message de moi-même — ignoré !")
-            return
+        val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent) ?: return
+        val messageComplet = StringBuilder()
+        var numeroExpediteur = ""
+
+        for (msg in messages) {
+            messageComplet.append(msg.messageBody)
+            if (numeroExpediteur.isEmpty()) numeroExpediteur = msg.originatingAddress ?: ""
         }
 
-        if (msg.startsWith("!!")) {
-            val svc = Intent(context, MySafeAgentService::class.java).apply {
-                action = MySafeAgentService.SMS_RECEIVED
-                putExtra("sms_message", msg)
-                putExtra("sender_number", sender)
-            }
-            context?.startForegroundService(svc)
-            val ui = Intent("com.mysafe.mysafe.SMS_RECEIVED").apply {
-                setPackage(context?.packageName)
-                putExtra("sms_message", msg)
-            }
-            context?.sendBroadcast(ui)
-            try { abortBroadcast() } catch (_: Exception) {}
+        val message = messageComplet.toString().trim()
+        Log.d("SmsReceiver", "SMS recu de $numeroExpediteur : $message")
+
+        // Traiter les commandes
+        when {
+            message == "!!POSITION" -> repondrePosition(context, numeroExpediteur)
+            message == "!!DEMARRER" -> demarrerSuivi(context, numeroExpediteur)
+            message == "!!STOP" -> arreterSuivi(context, numeroExpediteur)
+            message.startsWith("!!") -> traiterPosition(context, numeroExpediteur, message)
         }
     }
 
-    private fun normalize(s: String?) = s?.replace("\\s".toRegex(), "")?.replace("-", "")?.let {
-        if (it.startsWith("0") && it.length == 10) "+33${it.substring(1)}" else it
-    } ?: ""
+    private fun repondrePosition(context: Context, destinataire: String) {
+        Log.d("SmsReceiver", "Reponse position a $destinataire")
+        val reponse = "!!0.0,0.0" // Sera remplacee par la vraie position
+        envoyerSMSInvisible(destinataire, reponse)
+    }
+
+    private fun demarrerSuivi(context: Context, destinataire: String) {
+        Log.d("SmsReceiver", "Demarrage suivi demande par $destinataire")
+        val intent = Intent(context, MySafeAgentService::class.java)
+        intent.action = MySafeAgentService.ACTION_SEND_COMMAND
+        intent.putExtra("target_number", destinataire)
+        intent.putExtra("command", "!!DEMARRER")
+        context.startForegroundService(intent)
+    }
+
+    private fun arreterSuivi(context: Context, destinataire: String) {
+        Log.d("SmsReceiver", "Arret suivi demande par $destinataire")
+    }
+
+    private fun traiterPosition(context: Context, expediteur: String, message: String) {
+        val parts = message.removePrefix("!!").split(",")
+        if (parts.size >= 2) {
+            val lat = parts[0].toDoubleOrNull()
+            val lon = parts[1].toDoubleOrNull()
+            if (lat != null && lon != null) {
+                val broadcast = Intent("com.mysafe.mysafe.SMS_RECEIVED").apply {
+                    setPackage(context.packageName)
+                    putExtra("sms_message", message)
+                    putExtra("sender_number", expediteur)
+                }
+                context.sendBroadcast(broadcast)
+            }
+        }
+    }
+
+    private fun envoyerSMSInvisible(destinataire: String, message: String) {
+        try {
+            val smsManager = SmsManager.getDefault()
+            val parts = smsManager.divideMessage(message)
+            if (parts.size == 1) {
+                smsManager.sendTextMessage(destinataire, null, parts[0], null, null)
+            } else {
+                smsManager.sendMultipartTextMessage(destinataire, null, parts, null, null)
+            }
+            Log.d("SmsReceiver", "SMS invisible envoye a $destinataire")
+        } catch (e: Exception) {
+            Log.e("SmsReceiver", "Erreur envoi SMS: ${e.message}")
+        }
+    }
 }

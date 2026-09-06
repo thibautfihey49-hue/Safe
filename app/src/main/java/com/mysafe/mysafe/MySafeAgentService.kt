@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
+import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Build
 import android.os.IBinder
@@ -16,6 +17,7 @@ import android.telephony.SmsManager
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import com.google.android.gms.location.*
+import kotlin.math.abs
 
 class MySafeAgentService : Service() {
     companion object {
@@ -23,14 +25,22 @@ class MySafeAgentService : Service() {
         const val SMS_RECEIVED = "com.mysafe.mysafe.SMS_RECEIVED"
         const val ACTION_SEND_COMMAND = "com.mysafe.mysafe.SEND_COMMAND"
         private const val CHANNEL_ID = "MySafeServiceChannel"
-        private const val MIN_ACCURACY = 30f // ✅ Moins de 30 mètres = valide
+        
+        // 🎯 COMME GOOGLE MAPS : Accepter jusqu'à 5m, viser 2-3m
+        private const val TARGET_ACCURACY = 3f    // ✅ Objectif : 3m max
+        private const val MAX_ACCEPTED_ACCURACY = 8f // ✅ Accepter max 8m si 3m impossible
+        private const val MAX_WAIT_TIME = 20000L   // ⏳ Attendre 20s max pour bonne position
     }
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
-    private lateinit var locationRequestHighAccuracy: LocationRequest
+    private lateinit var locationRequest: LocationRequest
+    private lateinit var locationManager: LocationManager
     private var locationCallback: LocationCallback? = null
+    private var gpsListener: LocationListener? = null
     private var targetNumber: String = ""
     private var isTracking = false
+    private var bestLocation: Location? = null
+    private var locationStartTime = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -38,24 +48,84 @@ class MySafeAgentService : Service() {
         startForeground(1, buildNotification())
         
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
         
-        // ✅ PRÉCISION MAXIMALE !
-        locationRequestHighAccuracy = LocationRequest.create().apply {
-            interval = 5000        // 5 secondes
-            fastestInterval = 2000 // 2 secondes
+        // 🎯 EXACTEMENT COMME GOOGLE MAPS : PRIORITÉ MAXIMALE
+        locationRequest = LocationRequest.create().apply {
+            interval = 3000           // Mise à jour toutes les 3s
+            fastestInterval = 1000     // Jusqu'à 1 mise à jour par seconde
             priority = LocationRequest.PRIORITY_HIGH_ACCURACY
-            smallestDisplacement = 2f // Bouger de 2m seulement = mise à jour
-            maxWaitTime = 10000
+            smallestDisplacement = 1f  // Mise à jour si déplacement de 1m
+            maxWaitTime = 5000
         }
         
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
-                result.lastLocation?.let { loc ->
-                    if (isTracking && targetNumber.isNotEmpty() && loc.accuracy <= MIN_ACCURACY) {
-                        sendSms(targetNumber, "!!${loc.latitude},${loc.longitude},${loc.altitude.toInt()},${loc.accuracy.toInt()}m")
-                    }
-                }
+                result.lastLocation?.let { checkLocation(it) }
             }
+        }
+        
+        startGpsNativeListener()
+    }
+
+    // 🎯 ÉCOUTER ÉGALEMENT LE GPS NATIF (comme Google Maps)
+    private fun startGpsNativeListener() {
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) return
+        
+        gpsListener = object : LocationListener {
+            override fun onLocationChanged(loc: Location) {
+                Log.d(TAG, "🛰️ GPS Natif: ${loc.accuracy.toInt()}m")
+                checkLocation(loc)
+            }
+            override fun onProviderEnabled(p: String) = Unit
+            override fun onProviderDisabled(p: String) = Unit
+        }
+        
+        locationManager.requestLocationUpdates(
+            LocationManager.GPS_PROVIDER,
+            1000,
+            0f,
+            gpsListener!!
+        )
+        locationManager.requestLocationUpdates(
+            LocationManager.NETWORK_PROVIDER,
+            1000,
+            0f,
+            gpsListener!!
+        )
+    }
+
+    // 🎯 ÉVALUER CHAQUE POSITION REÇUE
+    private fun checkLocation(loc: Location) {
+        val now = System.currentTimeMillis()
+        
+        // Ignorer les positions trop vieilles (>1min)
+        if (now - loc.time > 60000) {
+            Log.d(TAG, "⏭️ Position trop vieille ignorée")
+            return
+        }
+        
+        // Mettre à jour la meilleure position
+        if (bestLocation == null || loc.accuracy < bestLocation!!.accuracy) {
+            bestLocation = loc
+            Log.d(TAG, "✅ NOUVELLE MEILLEURE POSITION: ${loc.accuracy.toInt()}m (${loc.provider})")
+        }
+        
+        // ✅ Si précision excellente → RÉPONDRE TOUT DE SUITE
+        if (bestLocation!!.accuracy <= TARGET_ACCURACY) {
+            Log.d(TAG, "🎯 PRÉCISION OBJECTIF ATTEINTE: ${bestLocation!!.accuracy.toInt()}m ≤ ${TARGET_ACCURACY}m")
+            if (!isTracking) sendBestLocation() // Pour demande ponctuelle
+            return
+        }
+        
+        // ⏳ Si temps écoulé → RÉPONDRE avec la meilleure obtenue
+        if (locationStartTime > 0 && now - locationStartTime > MAX_WAIT_TIME) {
+            Log.d(TAG, "⏳ Temps écoulé — meilleure précision obtenue: ${bestLocation!!.accuracy.toInt()}m")
+            if (!isTracking) sendBestLocation()
         }
     }
 
@@ -81,11 +151,14 @@ class MySafeAgentService : Service() {
         
         when {
             message == "!!POSITION" -> {
-                Log.d(TAG, "📍 Demande de position — je cherche la MEILLEURE précision !")
-                getBestLocationAndReply(senderNumber)
+                Log.d(TAG, "📍 Demande de position — Recherche précision ${TARGET_ACCURACY}m...")
+                targetNumber = senderNumber
+                bestLocation = null
+                locationStartTime = System.currentTimeMillis()
+                requestFreshLocation()
             }
             message == "!!DEMARRER" -> {
-                Log.d(TAG, "🔔 Suivi continu démarré — précision MAX")
+                Log.d(TAG, "🔔 Suivi continu démarré — Précision ${TARGET_ACCURACY}m cible")
                 targetNumber = senderNumber
                 isTracking = true
                 startLocationUpdates()
@@ -111,80 +184,29 @@ class MySafeAgentService : Service() {
         sendSms(target, command)
     }
 
-    // ✅ TROUVER LA MEILLEURE POSITION PRÉCISE
-    private fun getBestLocationAndReply(replyToNumber: String) {
-        if (ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            Log.d(TAG, "❌ Autorise la position GPS précise !")
-            return
-        }
-
-        val locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
-        
-        // ✅ Vérifier si GPS est activé
-        if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-            Log.d(TAG, "⚠️ GPS éteint — activer le GPS pour précision maximale")
-        }
-
-        // ✅ D'abord essayer la dernière position connue
-        val gpsLoc = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-        val netLoc = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-        
-        var bestLoc: Location? = null
-        
-        if (gpsLoc != null && gpsLoc.accuracy <= MIN_ACCURACY) bestLoc = gpsLoc
-        if (netLoc != null && (bestLoc == null || netLoc.accuracy < bestLoc.accuracy)) bestLoc = netLoc
-        
-        if (bestLoc != null) {
-            val response = "!!${bestLoc.latitude},${bestLoc.longitude},${bestLoc.altitude.toInt()},${bestLoc.accuracy.toInt()}m"
-            Log.d(TAG, "✅ Position trouvée — Précision: ${bestLoc.accuracy.toInt()}m")
-            sendSms(replyToNumber, response)
-            return
-        }
-        
-        // ✅ Sinon demander une position FRAÎCHE et PRÉCISE
-        requestFreshAccurateLocation(replyToNumber)
-    }
-
-    private fun requestFreshAccurateLocation(replyToNumber: String) {
-        val req = LocationRequest.create().apply {
-            numUpdates = 3 // ✅ Prendre 3 mesures et garder la meilleure
-            expirationTime = 20000 // 20 secondes max
-            priority = LocationRequest.PRIORITY_HIGH_ACCURACY
-            smallestDisplacement = 1f
-        }
-        
-        var bestLocation: Location? = null
-        var updateCount = 0
-        
+    private fun requestFreshLocation() {
         if (ActivityCompat.checkSelfPermission(
                 this,
                 Manifest.permission.ACCESS_FINE_LOCATION
             ) != PackageManager.PERMISSION_GRANTED
         ) return
         
-        fusedLocationClient.requestLocationUpdates(req, object : LocationCallback() {
-            override fun onLocationResult(result: LocationResult) {
-                updateCount++
-                result.lastLocation?.let { loc ->
-                    Log.d(TAG, "📍 Position $updateCount: précision=${loc.accuracy.toInt()}m")
-                    if (bestLocation == null || loc.accuracy < bestLocation!!.accuracy) {
-                        bestLocation = loc
-                    }
-                    // ✅ Arrêter si précision suffisante ou 3 essais
-                    if (bestLocation!!.accuracy <= MIN_ACCURACY || updateCount >= 3) {
-                        val bLoc = bestLocation!!
-                        val response = "!!${bLoc.latitude},${bLoc.longitude},${bLoc.altitude.toInt()},${bLoc.accuracy.toInt()}m"
-                        Log.d(TAG, "✅ MEILLEURE POSITION — Précision: ${bLoc.accuracy.toInt()}m")
-                        sendSms(replyToNumber, response)
-                        fusedLocationClient.removeLocationUpdates(this)
-                    }
-                }
-            }
-        }, mainLooper)
+        fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback!!, mainLooper)
+    }
+
+    private fun sendBestLocation() {
+        val loc = bestLocation ?: run {
+            Log.d(TAG, "❌ Aucune position trouvée")
+            return
+        }
+        
+        val response = "!!${loc.latitude},${loc.longitude},${loc.altitude.toInt()},${loc.accuracy.toInt()}m"
+        Log.d(TAG, "📤 ENVOI POSITION: $response")
+        sendSms(targetNumber, response)
+        
+        // Nettoyer
+        locationStartTime = 0
+        fusedLocationClient.removeLocationUpdates(locationCallback!!)
     }
 
     private fun startLocationUpdates() {
@@ -193,9 +215,19 @@ class MySafeAgentService : Service() {
                 Manifest.permission.ACCESS_FINE_LOCATION
             ) != PackageManager.PERMISSION_GRANTED
         ) return
-        locationCallback?.let {
-            fusedLocationClient.requestLocationUpdates(locationRequestHighAccuracy, it, mainLooper)
+        
+        locationCallback = object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                result.lastLocation?.let { loc ->
+                    if (loc.accuracy <= MAX_ACCEPTED_ACCURACY) {
+                        val response = "!!${loc.latitude},${loc.longitude},${loc.altitude.toInt()},${loc.accuracy.toInt()}m"
+                        sendSms(targetNumber, response)
+                    }
+                }
+            }
         }
+        
+        fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback!!, mainLooper)
     }
 
     private fun stopLocationUpdates() {
@@ -224,7 +256,7 @@ class MySafeAgentService : Service() {
     private fun buildNotification(): Notification {
         return Notification.Builder(this, CHANNEL_ID)
             .setContentTitle("MySafe GPS")
-            .setContentText("Service de localisation actif")
+            .setContentText("Recherche précision ${TARGET_ACCURACY}m...")
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setPriority(Notification.PRIORITY_HIGH)
             .setCategory(Notification.CATEGORY_SERVICE)
@@ -238,7 +270,7 @@ class MySafeAgentService : Service() {
                 "MySafe GPS Service",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Service de localisation en arrière-plan"
+                description = "Service de localisation — Précision maximale"
             }
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
@@ -248,5 +280,6 @@ class MySafeAgentService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         stopLocationUpdates()
+        gpsListener?.let { locationManager.removeUpdates(it) }
     }
 }

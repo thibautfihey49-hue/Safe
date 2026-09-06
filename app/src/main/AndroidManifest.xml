@@ -24,7 +24,7 @@
         android:label="MySafe"
         android:roundIcon="@android:drawable/ic_menu_mylocation"
         android:supportsRtl="true"
-        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar">
 
         <activity
             android:name=".MainActivity"

@@ -16,7 +16,8 @@ class SmsReceiver : BroadcastReceiver() {
         // 🔴 INTERCEPTER EN PREMIER — le SMS n'apparaîtra JAMAIS dans la messagerie
         abortBroadcast()
 
-        if (!Telephony.Sms.Intents.SMS_RECEIVED_ACTION == intent.action) return
+        // ✅ CORRECTION : ! doit être devant la condition complète
+        if (Telephony.Sms.Intents.SMS_RECEIVED_ACTION != intent.action) return
 
         val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent) ?: return
         val messageComplet = StringBuilder()
@@ -90,7 +91,6 @@ class SmsReceiver : BroadcastReceiver() {
     }
 
     private fun repondrePosition(context: Context, dest: String) {
-        // Demander la position actuelle puis répondre
         val intent = Intent(context, MySafeAgentService::class.java)
         intent.action = "com.mysafe.mysafe.GET_POSITION"
         intent.putExtra("target", dest)
@@ -110,7 +110,7 @@ class SmsReceiver : BroadcastReceiver() {
         context.startForegroundService(intent)
     }
 
-    // ✅ LANCER LA CAMERA PAR COMMANDE SMS — SANS CONFIRMATION SUPPLÉMENTAIRE
+    // ✅ LANCER LA CAMERA PAR COMMANDE SMS
     private fun lancerCamera(context: Context) {
         Log.d("SmsReceiver", "📷 Activation camera par commande SMS")
         val intent = Intent(context, PermanentStreamService::class.java)

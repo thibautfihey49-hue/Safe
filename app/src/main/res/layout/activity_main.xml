@@ -15,8 +15,8 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="MySafe GPS"
-            android:textSize="32sp"
+            android:text="MySafe GPS + Streaming WIFI"
+            android:textSize="26sp"
             android:textStyle="bold"
             android:textColor="#000000"
             android:layout_marginBottom="4dp"/>
@@ -24,10 +24,20 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Suivi GPS discret par SMS"
-            android:textSize="16sp"
+            android:text="📡 Streaming caméra/audio par Wi-Fi local — 0 coût !"
+            android:textSize="14sp"
             android:textColor="#444444"
             android:layout_marginBottom="20dp"/>
+
+        <!-- 📍 SECTION GPS -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="📍 SUIVI GPS"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#6A00C9"
+            android:layout_marginBottom="8dp"/>
 
         <EditText
             android:id="@+id/etTargetNumber"
@@ -50,25 +60,23 @@
             <Button
                 android:id="@+id/btnMyPosition"
                 android:layout_width="0dp"
-                android:layout_height="70dp"
+                android:layout_height="60dp"
                 android:layout_weight="1"
                 android:text="🟢 MA POSITION"
-                android:textSize="15sp"
+                android:textSize="14sp"
                 android:textStyle="bold"
                 android:backgroundTint="#6A00C9"
                 android:textColor="#FFFFFF"/>
 
-            <View
-                android:layout_width="12dp"
-                android:layout_height="1dp"/>
+            <View android:layout_width="12dp" android:layout_height="1dp"/>
 
             <Button
                 android:id="@+id/btnGetHisPosition"
                 android:layout_width="0dp"
-                android:layout_height="70dp"
+                android:layout_height="60dp"
                 android:layout_weight="1"
                 android:text="🔴 SA POSITION"
-                android:textSize="15sp"
+                android:textSize="14sp"
                 android:textStyle="bold"
                 android:backgroundTint="#6A00C9"
                 android:textColor="#FFFFFF"/>
@@ -78,34 +86,147 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:layout_marginBottom="12dp">
+            android:layout_marginBottom="20dp">
 
             <Button
                 android:id="@+id/btnDemarrer"
                 android:layout_width="0dp"
-                android:layout_height="70dp"
+                android:layout_height="60dp"
                 android:layout_weight="1"
-                android:text="▶️ SUIVI"
-                android:textSize="15sp"
+                android:text="▶️ SUIVI CONTINU"
+                android:textSize="14sp"
                 android:textStyle="bold"
-                android:backgroundTint="#6A00C9"
+                android:backgroundTint="#009933"
                 android:textColor="#FFFFFF"/>
 
-            <View
-                android:layout_width="12dp"
-                android:layout_height="1dp"/>
+            <View android:layout_width="12dp" android:layout_height="1dp"/>
 
             <Button
                 android:id="@+id/btnStop"
                 android:layout_width="0dp"
-                android:layout_height="70dp"
+                android:layout_height="60dp"
                 android:layout_weight="1"
                 android:text="⏹️ STOP"
-                android:textSize="15sp"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:backgroundTint="#CC0000"
+                android:textColor="#FFFFFF"/>
+        </LinearLayout>
+
+        <!-- 📡 SECTION STREAMING WIFI -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="📡 STREAMING WIFI LOCAL"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#006633"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="📱 TÉLÉPHONE CIBLE → Cliquez 'DEVENIR SERVEUR'\n📲 TÉLÉPHONE DE CONTRÔLE → Entrez l'IP + 'SE CONNECTER'"
+            android:textSize="13sp"
+            android:textColor="#555555"
+            android:padding="8dp"
+            android:background="#E8F5E9"
+            android:layout_marginBottom="12dp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="12dp">
+
+            <Button
+                android:id="@+id/btnStartServer"
+                android:layout_width="0dp"
+                android:layout_height="60dp"
+                android:layout_weight="1"
+                android:text="📡 DEVENIR SERVEUR"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:backgroundTint="#006633"
+                android:textColor="#FFFFFF"/>
+
+            <View android:layout_width="12dp" android:layout_height="1dp"/>
+
+            <Button
+                android:id="@+id/btnStartClient"
+                android:layout_width="0dp"
+                android:layout_height="60dp"
+                android:layout_weight="1"
+                android:text="📲 SE CONNECTER"
+                android:textSize="13sp"
                 android:textStyle="bold"
                 android:backgroundTint="#6A00C9"
                 android:textColor="#FFFFFF"/>
         </LinearLayout>
+
+        <EditText
+            android:id="@+id/etServerIp"
+            android:layout_width="match_parent"
+            android:layout_height="55dp"
+            android:hint="📱 IP du serveur (ex: 192.168.1.42)"
+            android:textSize="16sp"
+            android:textColor="#000000"
+            android:background="#F5F5F5"
+            android:padding="12dp"
+            android:layout_marginBottom="12dp"/>
+
+        <Button
+            android:id="@+id/btnStopStream"
+            android:layout_width="match_parent"
+            android:layout_height="55dp"
+            android:text="⏹️ ARRÊTER LE STREAMING"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:backgroundTint="#CC0000"
+            android:textColor="#FFFFFF"
+            android:layout_marginBottom="12dp"/>
+
+        <TextView
+            android:id="@+id/tvStreamStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="✅ Prêt — Activez le Wi-Fi sur LES DEUX téléphones"
+            android:textSize="13sp"
+            android:textColor="#006633"
+            android:gravity="center"
+            android:padding="10dp"
+            android:background="#E8F5E9"
+            android:layout_marginBottom="16dp"/>
+
+        <SurfaceView
+            android:id="@+id/surfaceView"
+            android:layout_width="match_parent"
+            android:layout_height="180dp"
+            android:background="#000000"
+            android:layout_marginBottom="16dp"/>
+
+        <!-- 📍 CARTE -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="🗺️ CARTE"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#6A00C9"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:id="@+id/tvPositions"
+            android:layout_width="match_parent"
+            android:layout_height="120dp"
+            android:hint="📋 Journal des événements..."
+            android:textSize="13sp"
+            android:textColor="#000000"
+            android:background="#F5F5F5"
+            android:padding="12dp"
+            android:layout_marginBottom="12dp"
+            android:scrollbars="vertical"
+            android:maxLines="6"/>
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -116,201 +237,32 @@
             <Button
                 android:id="@+id/btnFloatingMap"
                 android:layout_width="0dp"
-                android:layout_height="70dp"
+                android:layout_height="55dp"
                 android:layout_weight="1"
                 android:text="🗺️ CARTE FLOTTANTE"
-                android:textSize="14sp"
+                android:textSize="13sp"
                 android:textStyle="bold"
                 android:backgroundTint="#6A00C9"
                 android:textColor="#FFFFFF"/>
 
-            <View
-                android:layout_width="12dp"
-                android:layout_height="1dp"/>
+            <View android:layout_width="12dp" android:layout_height="1dp"/>
 
             <Button
                 android:id="@+id/btnClearHistory"
                 android:layout_width="0dp"
-                android:layout_height="70dp"
+                android:layout_height="55dp"
                 android:layout_weight="1"
                 android:text="🗑️ EFFACER"
-                android:textSize="14sp"
+                android:textSize="13sp"
                 android:textStyle="bold"
-                android:backgroundTint="#6A00C9"
+                android:backgroundTint="#444444"
                 android:textColor="#FFFFFF"/>
         </LinearLayout>
-
-        <TextView
-            android:id="@+id/tvPositions"
-            android:layout_width="match_parent"
-            android:layout_height="150dp"
-            android:hint="📋 Journal des événements..."
-            android:textSize="14sp"
-            android:textColor="#000000"
-            android:background="#F5F5F5"
-            android:padding="12dp"
-            android:layout_marginBottom="16dp"
-            android:scrollbars="vertical"
-            android:maxLines="8"/>
 
         <org.osmdroid.views.MapView
             android:id="@+id/mapView"
             android:layout_width="match_parent"
-            android:layout_height="350dp"
-            android:layout_marginBottom="20dp"/>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="🎥 STREAMING CAMÉRA"
-            android:textSize="22sp"
-            android:textStyle="bold"
-            android:textColor="#006633"
-            android:layout_marginBottom="16dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="📷 Caméra :"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:textColor="#000000"
-            android:layout_marginBottom="8dp"/>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginBottom="16dp">
-
-            <Button
-                android:id="@+id/btnCamFront"
-                android:layout_width="0dp"
-                android:layout_height="60dp"
-                android:layout_weight="1"
-                android:text="👤 AVANT"
-                android:textSize="15sp"
-                android:textStyle="bold"
-                android:backgroundTint="#444444"
-                android:textColor="#FFFFFF"/>
-
-            <View
-                android:layout_width="12dp"
-                android:layout_height="1dp"/>
-
-            <Button
-                android:id="@+id/btnCamBack"
-                android:layout_width="0dp"
-                android:layout_height="60dp"
-                android:layout_weight="1"
-                android:text="📷 ARRIÈRE"
-                android:textSize="15sp"
-                android:textStyle="bold"
-                android:backgroundTint="#006633"
-                android:textColor="#FFFFFF"/>
-        </LinearLayout>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="🔊 Son / Micro :"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:textColor="#000000"
-            android:layout_marginBottom="8dp"/>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginBottom="16dp">
-
-            <Button
-                android:id="@+id/btnMicToggle"
-                android:layout_width="0dp"
-                android:layout_height="60dp"
-                android:layout_weight="1"
-                android:text="🎤 MICRO: OFF"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:backgroundTint="#444444"
-                android:textColor="#FFFFFF"/>
-
-            <View
-                android:layout_width="12dp"
-                android:layout_height="1dp"/>
-
-            <Button
-                android:id="@+id/btnSpeakToggle"
-                android:layout_width="0dp"
-                android:layout_height="60dp"
-                android:layout_weight="1"
-                android:text="🔊 SON: OFF"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:backgroundTint="#444444"
-                android:textColor="#FFFFFF"/>
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginBottom="16dp">
-
-            <Button
-                android:id="@+id/btnStartStream"
-                android:layout_width="0dp"
-                android:layout_height="65dp"
-                android:layout_weight="1"
-                android:text="▶️ DÉMARRER LE STREAM"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:backgroundTint="#009933"
-                android:textColor="#FFFFFF"/>
-
-            <View
-                android:layout_width="12dp"
-                android:layout_height="1dp"/>
-
-            <Button
-                android:id="@+id/btnStopStream"
-                android:layout_width="0dp"
-                android:layout_height="65dp"
-                android:layout_weight="1"
-                android:text="⏹️ ARRÊTER"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:backgroundTint="#CC0000"
-                android:textColor="#FFFFFF"/>
-        </LinearLayout>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="📹 Aperçu caméra :"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:textColor="#000000"
-            android:layout_marginBottom="8dp"/>
-
-        <SurfaceView
-            android:id="@+id/surfaceView"
-            android:layout_width="match_parent"
-            android:layout_height="200dp"
-            android:background="#000000"
-            android:layout_marginBottom="16dp"/>
-
-        <TextView
-            android:id="@+id/tvStreamStatus"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="✅ Prêt — choisis caméra et clique DÉMARRER"
-            android:textSize="14sp"
-            android:textColor="#006633"
-            android:gravity="center"
-            android:padding="12dp"
-            android:background="#E8F5E9"
+            android:layout_height="300dp"
             android:layout_marginBottom="30dp"/>
 
     </LinearLayout>

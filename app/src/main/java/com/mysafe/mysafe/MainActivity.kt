@@ -11,7 +11,6 @@ import android.os.Bundle
 import android.provider.Settings
 import android.telephony.TelephonyManager
 import android.util.Log
-import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
 import android.widget.*
@@ -39,14 +38,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnFloatingMap: Button
     private lateinit var btnClearHistory: Button
     
-    private lateinit var surfaceView: SurfaceView
-    private lateinit var btnCamFront: Button
-    private lateinit var btnCamBack: Button
-    private lateinit var btnStartStream: Button
+    private lateinit var etServerIp: EditText
+    private lateinit var btnStartServer: Button
+    private lateinit var btnStartClient: Button
     private lateinit var btnStopStream: Button
-    private lateinit var btnMicToggle: Button
-    private lateinit var btnSpeakToggle: Button
     private lateinit var tvStreamStatus: TextView
+    private lateinit var surfaceView: SurfaceView
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationRequest: LocationRequest
@@ -57,22 +54,18 @@ class MainActivity : AppCompatActivity() {
     private var myOwnNumber: String = ""
     private val DEFAULT_ANGERS = GeoPoint(47.4728, -0.5416)
 
-    private var currentCameraFacing = CameraCharacteristics.LENS_FACING_BACK
-    private var isMicOn = false
-    private var isSpeakOn = false
-
     private val PERMS = mutableListOf(
         Manifest.permission.INTERNET, Manifest.permission.ACCESS_NETWORK_STATE,
+        Manifest.permission.ACCESS_WIFI_STATE, Manifest.permission.CHANGE_WIFI_STATE,
         Manifest.permission.SEND_SMS, Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS,
         Manifest.permission.READ_PHONE_STATE, Manifest.permission.ACCESS_FINE_LOCATION,
         Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION,
         Manifest.permission.FOREGROUND_SERVICE, Manifest.permission.SYSTEM_ALERT_WINDOW,
         Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO,
         Manifest.permission.MODIFY_AUDIO_SETTINGS, Manifest.permission.RECEIVE_BOOT_COMPLETED,
-        Manifest.permission.FOREGROUND_SERVICE_CAMERA
+        Manifest.permission.FOREGROUND_SERVICE_CAMERA, Manifest.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK
     ).apply { 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) add(Manifest.permission.FOREGROUND_SERVICE_LOCATION)
     }.toTypedArray()
 
     private val smsReceiver = object : BroadcastReceiver() {
@@ -92,16 +85,16 @@ class MainActivity : AppCompatActivity() {
             getMyPhoneNumber()
             setupMap()
             setupFusedLocation()
-            setupStreamingPanel()
+            setupWifiStreamPanel()
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 registerReceiver(smsReceiver, IntentFilter("com.mysafe.mysafe.SMS_RECEIVED"), Context.RECEIVER_NOT_EXPORTED)
             } else {
                 registerReceiver(smsReceiver, IntentFilter("com.mysafe.mysafe.SMS_RECEIVED"))
             }
-            CameraStreamService.statusCallback = { runOnUiThread { tvStreamStatus.text = it } }
+            WifiStreamService.statusCallback = { runOnUiThread { tvStreamStatus.text = it } }
             
-            addLog("✅ MySafe PRÊT — Démarré sans crash !")
+            addLog("✅ MySafe PRÊT — Streaming WIFI disponible !")
         } catch (e: Exception) {
             Log.e("MySafe", "Erreur onCreate: ${e.message}", e)
             Toast.makeText(this, "❌ Erreur: ${e.message}", Toast.LENGTH_LONG).show()
@@ -119,14 +112,12 @@ class MainActivity : AppCompatActivity() {
         btnFloatingMap = findViewById(R.id.btnFloatingMap)
         btnClearHistory = findViewById(R.id.btnClearHistory)
         
-        surfaceView = findViewById(R.id.surfaceView)
-        btnCamFront = findViewById(R.id.btnCamFront)
-        btnCamBack = findViewById(R.id.btnCamBack)
-        btnStartStream = findViewById(R.id.btnStartStream)
+        etServerIp = findViewById(R.id.etServerIp)
+        btnStartServer = findViewById(R.id.btnStartServer)
+        btnStartClient = findViewById(R.id.btnStartClient)
         btnStopStream = findViewById(R.id.btnStopStream)
-        btnMicToggle = findViewById(R.id.btnMicToggle)
-        btnSpeakToggle = findViewById(R.id.btnSpeakToggle)
         tvStreamStatus = findViewById(R.id.tvStreamStatus)
+        surfaceView = findViewById(R.id.surfaceView)
 
         btnMyPosition.setOnClickListener { getMyPosition() }
         btnGetHisPosition.setOnClickListener { askHisPosition() }
@@ -136,51 +127,44 @@ class MainActivity : AppCompatActivity() {
         btnClearHistory.setOnClickListener { clearMap() }
     }
 
-    private fun setupStreamingPanel() {
-        btnCamFront.setOnClickListener {
-            currentCameraFacing = CameraCharacteristics.LENS_FACING_FRONT
-            btnCamFront.setBackgroundColor(0xFF006633.toInt())
-            btnCamBack.setBackgroundColor(0xFF444444.toInt())
-            Toast.makeText(this, "📷 Caméra Avant", Toast.LENGTH_SHORT).show()
-        }
-        
-        btnCamBack.setOnClickListener {
-            currentCameraFacing = CameraCharacteristics.LENS_FACING_BACK
-            btnCamBack.setBackgroundColor(0xFF006633.toInt())
-            btnCamFront.setBackgroundColor(0xFF444444.toInt())
-            Toast.makeText(this, "📷 Caméra Arrière", Toast.LENGTH_SHORT).show()
-        }
-        
-        btnMicToggle.setOnClickListener {
-            isMicOn = !isMicOn
-            btnMicToggle.setBackgroundColor(if (isMicOn) 0xFF006633.toInt() else 0xFF444444.toInt())
-            btnMicToggle.text = if (isMicOn) "🎤 MICRO: ON" else "🎤 MICRO: OFF"
-            val intent = Intent(this, CameraStreamService::class.java)
-            intent.action = CameraStreamService.ACTION_TOGGLE_MIC
-            startForegroundServiceSafe(intent)
-        }
-        
-        btnSpeakToggle.setOnClickListener {
-            isSpeakOn = !isSpeakOn
-            btnSpeakToggle.setBackgroundColor(if (isSpeakOn) 0xFF006633.toInt() else 0xFF444444.toInt())
-            btnSpeakToggle.text = if (isSpeakOn) "🔊 SON: ON" else "🔊 SON: OFF"
-            val intent = Intent(this, CameraStreamService::class.java)
-            intent.action = CameraStreamService.ACTION_TOGGLE_SPEAK
-            startForegroundServiceSafe(intent)
-        }
-        
-        btnStartStream.setOnClickListener { startStreaming() }
-        btnStopStream.setOnClickListener { stopStreaming() }
-        
-        surfaceView.holder.addCallback(object : SurfaceHolder.Callback {
-            override fun surfaceCreated(holder: SurfaceHolder) {
-                CameraStreamService.surface = holder.surface
+    private fun setupWifiStreamPanel() {
+        // 📡 TÉLÉPHONE CIBLE = bouton "Devenir serveur"
+        btnStartServer.setOnClickListener {
+            if (!checkWifiPerms()) {
+                Toast.makeText(this, "⚠️ Activez le Wi-Fi d'abord !", Toast.LENGTH_LONG).show()
+                return@setOnClickListener
             }
-            override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
-            override fun surfaceDestroyed(holder: SurfaceHolder) {
-                CameraStreamService.surface = null
+            val intent = Intent(this, WifiStreamService::class.java)
+            intent.action = WifiStreamService.ACTION_START_SERVER
+            startForegroundServiceSafe(intent)
+            Toast.makeText(this, "📡 Serveur démarré — Note l'IP affichée !", Toast.LENGTH_LONG).show()
+        }
+
+        // 📱 TÉLÉPHONE DE CONTRÔLE = bouton "Se connecter"
+        btnStartClient.setOnClickListener {
+            val ip = etServerIp.text.toString().trim()
+            if (ip.isEmpty()) {
+                Toast.makeText(this, "⚠️ Entrez l'IP du serveur", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
             }
-        })
+            val intent = Intent(this, WifiStreamService::class.java)
+            intent.action = WifiStreamService.ACTION_START_CLIENT
+            intent.putExtra("server_ip", ip)
+            startForegroundServiceSafe(intent)
+            Toast.makeText(this, "📱 Connexion à $ip...", Toast.LENGTH_SHORT).show()
+        }
+
+        // ⏹️ STOP
+        btnStopStream.setOnClickListener {
+            val intent = Intent(this, WifiStreamService::class.java)
+            intent.action = WifiStreamService.ACTION_STOP
+            startForegroundServiceSafe(intent)
+            Toast.makeText(this, "⏹️ Streaming arrêté", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun checkWifiPerms(): Boolean {
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_WIFI_STATE) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun startForegroundServiceSafe(intent: Intent) {
@@ -193,34 +177,6 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) {
             Log.e("MySafe", "Erreur service: ${e.message}")
         }
-    }
-
-    private fun startStreaming() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED ||
-            ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            Toast.makeText(this, "⚠️ Autorisez Caméra et Microphone", Toast.LENGTH_SHORT).show()
-            checkPerms()
-            return
-        }
-        val intent = Intent(this, CameraStreamService::class.java)
-        intent.action = CameraStreamService.ACTION_START_STREAM
-        intent.putExtra("camera_facing", currentCameraFacing)
-        startForegroundServiceSafe(intent)
-        tvStreamStatus.text = "⏳ Démarrage du streaming..."
-        Toast.makeText(this, "📹 Streaming démarré", Toast.LENGTH_SHORT).show()
-    }
-
-    private fun stopStreaming() {
-        val intent = Intent(this, CameraStreamService::class.java)
-        intent.action = CameraStreamService.ACTION_STOP_STREAM
-        startForegroundServiceSafe(intent)
-        isMicOn = false; isSpeakOn = false
-        btnMicToggle.text = "🎤 MICRO: OFF"
-        btnSpeakToggle.text = "🔊 SON: OFF"
-        btnMicToggle.setBackgroundColor(0xFF444444.toInt())
-        btnSpeakToggle.setBackgroundColor(0xFF444444.toInt())
-        tvStreamStatus.text = "✅ Streaming arrêté"
-        Toast.makeText(this, "⏹️ Streaming arrêté", Toast.LENGTH_SHORT).show()
     }
 
     private fun getMyPhoneNumber() {

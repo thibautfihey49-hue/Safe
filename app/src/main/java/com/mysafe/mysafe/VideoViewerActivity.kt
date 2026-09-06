@@ -1,13 +1,11 @@
 package com.mysafe.mysafe
 
-import android.app.Activity
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.view.View
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import android.graphics.BitmapFactory
 
 class VideoViewerActivity : AppCompatActivity() {
     private lateinit var ivVideo: ImageView
@@ -24,7 +22,9 @@ class VideoViewerActivity : AppCompatActivity() {
         tvStatus.text = "En attente du flux..."
         
         PermanentStreamService.frameListener = { bytes, w, h ->
-            if (!estActif) return@frameListener
+            if (!estActif) {
+                return@PermanentStreamService  // ✅ Bon nom : la CLASSE, pas la variable
+            }
             runOnUiThread {
                 try {
                     val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)

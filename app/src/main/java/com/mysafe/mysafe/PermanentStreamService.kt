@@ -184,7 +184,7 @@ class PermanentStreamService : Service() {
                     val read = audioRecord!!.read(buffer, 0, bufferSize)
                     if (read > 0) {
                         try {
-                            out.writeByte('A'.code.toByte())
+                            out.write('A'.code)  // Int, pas Byte
                             out.writeInt(read)
                             out.write(buffer, 0, read)
                             out.flush()
@@ -229,7 +229,7 @@ class PermanentStreamService : Service() {
                                     image.close()
                                     
                                     try {
-                                        out.writeByte('V'.code.toByte())
+                                        out.write('V'.code)  // Int, pas Byte
                                         out.writeInt(bytes.size)
                                         out.writeInt(size.width)
                                         out.writeInt(size.height)
@@ -288,8 +288,8 @@ class PermanentStreamService : Service() {
                 
                 while (isRunning.get()) {
                     try {
-                        val type = `in`.readByte()
-                        if (type == 'A'.code.toByte()) {
+                        val type = `in`.read()  // Retourne Int, pas Byte
+                        if (type == 'A'.code) {
                             val size = `in`.readInt()
                             if (size > buffer.size) continue
                             `in`.readFully(buffer, 0, size)
@@ -308,8 +308,8 @@ class PermanentStreamService : Service() {
             val buffer = ByteArray(200 * 1024)
             while (isRunning.get()) {
                 try {
-                    val type = `in`.readByte()
-                    if (type == 'V'.code.toByte()) {
+                    val type = `in`.read()  // Retourne Int, pas Byte
+                    if (type == 'V'.code) {
                         val size = `in`.readInt()
                         val width = `in`.readInt()
                         val height = `in`.readInt()

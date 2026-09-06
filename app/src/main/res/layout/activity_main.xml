@@ -172,6 +172,12 @@
             android:textColor="#6A00C9"
             android:layout_marginBottom="8dp"/>
 
+        <org.osmdroid.views.MapView
+            android:id="@+id/mapView"
+            android:layout_width="match_parent"
+            android:layout_height="250dp"
+            android:layout_marginBottom="12dp"/>
+
         <EditText
             android:id="@+id/etTargetNumber"
             android:layout_width="match_parent"

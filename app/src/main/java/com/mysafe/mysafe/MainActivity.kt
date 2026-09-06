@@ -13,7 +13,8 @@ import android.provider.Settings
 import android.telephony.TelephonyManager
 import android.util.Log
 import android.view.Surface
-import android.view.TextureView
+import android.view.SurfaceHolder
+import android.view.SurfaceView
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
@@ -40,7 +41,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnFloatingMap: Button
     private lateinit var btnClearHistory: Button
     
-    private lateinit var textureView: TextureView
+    private lateinit var surfaceView: SurfaceView
     private lateinit var btnCamFront: Button
     private lateinit var btnCamBack: Button
     private lateinit var btnStartStream: Button
@@ -119,7 +120,7 @@ class MainActivity : AppCompatActivity() {
         btnFloatingMap = findViewById(R.id.btnFloatingMap)
         btnClearHistory = findViewById(R.id.btnClearHistory)
         
-        textureView = findViewById(R.id.surfaceView)
+        surfaceView = findViewById(R.id.surfaceView)
         btnCamFront = findViewById(R.id.btnCamFront)
         btnCamBack = findViewById(R.id.btnCamBack)
         btnStartStream = findViewById(R.id.btnStartStream)
@@ -172,17 +173,15 @@ class MainActivity : AppCompatActivity() {
         btnStartStream.setOnClickListener { startStreaming() }
         btnStopStream.setOnClickListener { stopStreaming() }
         
-        textureView.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
-            override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
-                CameraStreamService.surface = Surface(surface)
+        surfaceView.holder.addCallback(object : SurfaceHolder.Callback {
+            override fun surfaceCreated(holder: SurfaceHolder) {
+                CameraStreamService.surface = holder.surface
             }
-            override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {}
-            override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
+            override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
+            override fun surfaceDestroyed(holder: SurfaceHolder) {
                 CameraStreamService.surface = null
-                return true
             }
-            override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {}
-        }
+        })
     }
 
     private fun startForegroundServiceSafe(intent: Intent) {

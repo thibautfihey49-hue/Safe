@@ -6,7 +6,6 @@
     android:background="#F5F5F5"
     android:padding="16dp">
 
-    <!-- 🔒 TITRE — 5 clics rapides = mode secret -->
     <TextView
         android:id="@+id/tvTitle"
         android:layout_width="match_parent"
@@ -38,91 +37,19 @@
         android:padding="12dp"
         android:layout_marginBottom="12dp"/>
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_marginBottom="8dp">
-
-        <Button
-            android:id="@+id/btnMyPosition"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="🟢 MA POSITION"
-            android:background="#4CAF50"
-            android:textColor="#FFFFFF"
-            android:padding="10dp"
-            android:layout_marginEnd="4dp"/>
-
-        <Button
-            android:id="@+id/btnGetHisPosition"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="🔴 SA POSITION"
-            android:background="#2196F3"
-            android:textColor="#FFFFFF"
-            android:padding="10dp"
-            android:layout_marginStart="4dp"/>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="8dp">
+        <Button android:id="@+id/btnMyPosition" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="🟢 MA POSITION" android:background="#4CAF50" android:textColor="#FFFFFF" android:padding="10dp" android:layout_marginEnd="4dp"/>
+        <Button android:id="@+id/btnGetHisPosition" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="🔴 SA POSITION" android:background="#2196F3" android:textColor="#FFFFFF" android:padding="10dp" android:layout_marginStart="4dp"/>
     </LinearLayout>
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_marginBottom="8dp">
-
-        <Button
-            android:id="@+id/btnDemarrer"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="▶️ SUIVI"
-            android:background="#FF9800"
-            android:textColor="#FFFFFF"
-            android:padding="10dp"
-            android:layout_marginEnd="4dp"/>
-
-        <Button
-            android:id="@+id/btnStop"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="⏹️ STOP"
-            android:background="#F44336"
-            android:textColor="#FFFFFF"
-            android:padding="10dp"
-            android:layout_marginStart="4dp"/>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="8dp">
+        <Button android:id="@+id/btnDemarrer" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="▶️ SUIVI" android:background="#FF9800" android:textColor="#FFFFFF" android:padding="10dp" android:layout_marginEnd="4dp"/>
+        <Button android:id="@+id/btnStop" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="⏹️ STOP" android:background="#F44336" android:textColor="#FFFFFF" android:padding="10dp" android:layout_marginStart="4dp"/>
     </LinearLayout>
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_marginBottom="12dp">
-
-        <Button
-            android:id="@+id/btnFloatingMap"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="🗺️ CARTE FLOTTANTE"
-            android:background="#9C27B0"
-            android:textColor="#FFFFFF"
-            android:padding="10dp"
-            android:layout_marginEnd="4dp"/>
-
-        <Button
-            android:id="@+id/btnClearHistory"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="🗑️ EFFACER"
-            android:background="#607D8B"
-            android:textColor="#FFFFFF"
-            android:padding="10dp"
-            android:layout_marginStart="4dp"/>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="12dp">
+        <Button android:id="@+id/btnFloatingMap" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="🗺️ CARTE FLOTTANTE" android:background="#9C27B0" android:textColor="#FFFFFF" android:padding="10dp" android:layout_marginEnd="4dp"/>
+        <Button android:id="@+id/btnClearHistory" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="🗑️ EFFACER" android:background="#607D8B" android:textColor="#FFFFFF" android:padding="10dp" android:layout_marginStart="4dp"/>
     </LinearLayout>
 
     <org.osmdroid.views.MapView
@@ -132,23 +59,10 @@
         android:layout_weight="1"
         android:layout_marginBottom="12dp"/>
 
-    <ScrollView
-        android:layout_width="match_parent"
-        android:layout_height="120dp"
-        android:background="#EEEEEE"
-        android:padding="8dp">
-
-        <TextView
-            android:id="@+id/tvPositions"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="📋 Journal des positions...\n"
-            android:textSize="12sp"
-            android:fontFamily="monospace"
-            android:textColor="#000000"/>
+    <ScrollView android:layout_width="match_parent" android:layout_height="120dp" android:background="#EEEEEE" android:padding="8dp">
+        <TextView android:id="@+id/tvPositions" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="📋 Journal des positions...\n" android:textSize="12sp" android:fontFamily="monospace" android:textColor="#000000"/>
     </ScrollView>
 
-    <!-- 🔒 PANNEAU SECRET — CACHÉ PAR DÉFAUT -->
     <LinearLayout
         android:id="@+id/layoutSecretPanel"
         android:layout_width="match_parent"
@@ -159,143 +73,30 @@
         android:layout_marginTop="16dp"
         android:visibility="gone">
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="🔒 STREAMING CAMÉRA"
-            android:textColor="#00FF88"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:gravity="center"
-            android:layout_marginBottom="12dp"/>
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="🔒 STREAMING CAMÉRA" android:textColor="#00FF88" android:textSize="16sp" android:textStyle="bold" android:gravity="center" android:layout_marginBottom="12dp"/>
 
-        <!-- Aperçu vidéo avec ratio parfait -->
-        <FrameLayout
-            android:layout_width="match_parent"
-            android:layout_height="200dp"
-            android:background="#000000"
-            android:layout_marginBottom="12dp">
-
-            <SurfaceView
-                android:id="@+id/surfaceView"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"/>
+        <FrameLayout android:layout_width="match_parent" android:layout_height="200dp" android:background="#000000" android:layout_marginBottom="12dp">
+            <TextureView android:id="@+id/surfaceView" android:layout_width="match_parent" android:layout_height="match_parent"/>
         </FrameLayout>
 
-        <EditText
-            android:id="@+id/etServerUrl"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="🌐 URL du serveur (ex: http://192.168.1.100:8080)"
-            android:background="@android:drawable/edit_text"
-            android:padding="10dp"
-            android:textColor="#FFFFFF"
-            android:layout_marginBottom="8dp"/>
+        <EditText android:id="@+id/etServerUrl" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="🌐 URL du serveur (ex: http://192.168.1.100:8080)" android:background="@android:drawable/edit_text" android:padding="10dp" android:textColor="#FFFFFF" android:layout_marginBottom="8dp"/>
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginBottom="8dp">
-
-            <Button
-                android:id="@+id/btnCamFront"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="📷 AVANT"
-                android:background="#222222"
-                android:textColor="#00FF88"
-                android:padding="10dp"
-                android:layout_marginEnd="4dp"/>
-
-            <Button
-                android:id="@+id/btnCamBack"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="📷 ARRIÈRE"
-                android:background="#222222"
-                android:textColor="#00FF88"
-                android:padding="10dp"
-                android:layout_marginStart="4dp"/>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="8dp">
+            <Button android:id="@+id/btnCamFront" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="📷 AVANT" android:background="#222222" android:textColor="#00FF88" android:padding="10dp" android:layout_marginEnd="4dp"/>
+            <Button android:id="@+id/btnCamBack" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="📷 ARRIÈRE" android:background="#222222" android:textColor="#00FF88" android:padding="10dp" android:layout_marginStart="4dp"/>
         </LinearLayout>
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginBottom="8dp">
-
-            <Button
-                android:id="@+id/btnStartStream"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="▶️ DÉMARRER"
-                android:background="#006633"
-                android:textColor="#FFFFFF"
-                android:padding="10dp"
-                android:layout_marginEnd="4dp"/>
-
-            <Button
-                android:id="@+id/btnStopStream"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="⏹️ ARRÊTER"
-                android:background="#660022"
-                android:textColor="#FFFFFF"
-                android:padding="10dp"
-                android:layout_marginStart="4dp"/>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="8dp">
+            <Button android:id="@+id/btnStartStream" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="▶️ DÉMARRER" android:background="#006633" android:textColor="#FFFFFF" android:padding="10dp" android:layout_marginEnd="4dp"/>
+            <Button android:id="@+id/btnStopStream" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="⏹️ ARRÊTER" android:background="#660022" android:textColor="#FFFFFF" android:padding="10dp" android:layout_marginStart="4dp"/>
         </LinearLayout>
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginBottom="8dp">
-
-            <Button
-                android:id="@+id/btnMicToggle"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="🎤 MICRO"
-                android:background="#222222"
-                android:textColor="#00FF88"
-                android:padding="10dp"
-                android:layout_marginEnd="4dp"/>
-
-            <Button
-                android:id="@+id/btnSpeakToggle"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="🔊 PARLER"
-                android:background="#222222"
-                android:textColor="#00FF88"
-                android:padding="10dp"
-                android:layout_marginStart="4dp"/>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginBottom="8dp">
+            <Button android:id="@+id/btnMicToggle" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="🎤 MICRO" android:background="#222222" android:textColor="#00FF88" android:padding="10dp" android:layout_marginEnd="4dp"/>
+            <Button android:id="@+id/btnSpeakToggle" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="🔊 PARLER" android:background="#222222" android:textColor="#00FF88" android:padding="10dp" android:layout_marginStart="4dp"/>
         </LinearLayout>
 
-        <TextView
-            android:id="@+id/tvStreamStatus"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="⏸️ Statut: En attente"
-            android:textColor="#888888"
-            android:textSize="12sp"
-            android:gravity="center"
-            android:layout_marginBottom="8dp"/>
-
-        <Button
-            android:id="@+id/btnCloseSecret"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="❌ FERMER"
-            android:background="#333333"
-            android:textColor="#FFFFFF"/>
+        <TextView android:id="@+id/tvStreamStatus" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="⏸️ Statut: En attente" android:textColor="#888888" android:textSize="12sp" android:gravity="center" android:layout_marginBottom="8dp"/>
+        <Button android:id="@+id/btnCloseSecret" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="❌ FERMER" android:background="#333333" android:textColor="#FFFFFF"/>
     </LinearLayout>
-
 </LinearLayout>

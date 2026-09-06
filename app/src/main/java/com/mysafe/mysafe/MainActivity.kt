@@ -3,16 +3,16 @@ package com.mysafe.mysafe
 import android.Manifest
 import android.content.*
 import android.content.pm.PackageManager
+import android.graphics.SurfaceTexture
 import android.location.Location
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
+import android.telephony.TelephonyManager
 import android.util.Log
-import android.widget.Button
-import android.widget.EditText
-import android.widget.TextView
-import android.widget.Toast
+import android.view.View
+import android.view.Surface
+import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -24,8 +24,7 @@ import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import java.io.File
 import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.util.*
 
 class MainActivity : AppCompatActivity() {
     private lateinit var mapView: MapView
@@ -37,38 +36,49 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnStop: Button
     private lateinit var btnFloatingMap: Button
     private lateinit var btnClearHistory: Button
+    
+    private lateinit var tvTitle: TextView
+    private lateinit var layoutSecretPanel: LinearLayout
+    private lateinit var etServerUrl: EditText
+    private lateinit var textureView: TextureView
+    private lateinit var btnCamFront: Button
+    private lateinit var btnCamBack: Button
+    private lateinit var btnStartStream: Button
+    private lateinit var btnStopStream: Button
+    private lateinit var btnMicToggle: Button
+    private lateinit var btnSpeakToggle: Button
+    private lateinit var btnCloseSecret: Button
+    private lateinit var tvStreamStatus: TextView
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
-    private lateinit var locationRequest: LocationRequest
     private var locationCallback: LocationCallback? = null
     private var userMarker: Marker? = null
     private var remoteMarker: Marker? = null
     private var targetPhoneNumber: String = ""
+    private var myOwnNumber: String = ""
     private val DEFAULT_ANGERS = GeoPoint(47.4728, -0.5416)
 
-    private val PERMS = mutableListOf(
-        Manifest.permission.INTERNET,
-        Manifest.permission.ACCESS_NETWORK_STATE,
-        Manifest.permission.SEND_SMS,
-        Manifest.permission.RECEIVE_SMS,
-        Manifest.permission.READ_SMS,
-        Manifest.permission.ACCESS_FINE_LOCATION,
-        Manifest.permission.ACCESS_COARSE_LOCATION,
-        Manifest.permission.ACCESS_BACKGROUND_LOCATION,
-        Manifest.permission.FOREGROUND_SERVICE,
-        Manifest.permission.FOREGROUND_SERVICE_LOCATION,
-        Manifest.permission.SYSTEM_ALERT_WINDOW,
-        Manifest.permission.RECEIVE_BOOT_COMPLETED
-    ).apply {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
-    }.toTypedArray()
+    private var titleClickCount = 0
+    private var lastTitleClickTime = 0L
+    private var currentCameraFacing = CameraCharacteristics.LENS_FACING_BACK
+    private var isMicOn = false
+    private var isSpeakOn = false
 
-    private val smsResponseReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            val msg = intent?.getStringExtra("sms_message")
-            val sender = intent?.getStringExtra("sender_number")
-            Log.d("MySafe-UI", "📥 Reçu de [$sender] : [$msg]")
-            if (msg != null) runOnUiThread { handleIncomingMessage(msg, sender) }
+    private val PERMS = mutableListOf(
+        Manifest.permission.INTERNET, Manifest.permission.ACCESS_NETWORK_STATE,
+        Manifest.permission.SEND_SMS, Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS,
+        Manifest.permission.READ_PHONE_STATE, Manifest.permission.ACCESS_FINE_LOCATION,
+        Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION,
+        Manifest.permission.FOREGROUND_SERVICE, Manifest.permission.FOREGROUND_SERVICE_LOCATION,
+        Manifest.permission.SYSTEM_ALERT_WINDOW, Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO,
+        Manifest.permission.MODIFY_AUDIO_SETTINGS, Manifest.permission.RECEIVE_BOOT_COMPLETED
+    ).apply { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS) }.toTypedArray()
+
+    private val smsReceiver = object : BroadcastReceiver() {
+        override fun onReceive(c: Context?, i: Intent?) {
+            val msg = i?.getStringExtra("sms_message")
+            val sender = i?.getStringExtra("sender_number")
+            if (msg != null) runOnUiThread { handleIncoming(msg, sender) }
         }
     }
 
@@ -77,18 +87,15 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         initViews()
         checkPerms()
+        getMyPhoneNumber()
         setupMap()
         setupFusedLocation()
+        setupSecretPanel()
         
-        val intentFilter = IntentFilter("com.mysafe.mysafe.SMS_RECEIVED")
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(smsResponseReceiver, intentFilter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(smsResponseReceiver, intentFilter)
-        }
+        registerReceiver(smsReceiver, IntentFilter("com.mysafe.mysafe.SMS_RECEIVED"))
+        CameraStreamService.statusCallback = { runOnUiThread { tvStreamStatus.text = it } }
         
-        addLog("✅ MySafe PRÊT — Précision GPS maximale activée")
-        addLog("📍 🟢 MOI | 🔴 L'AUTRE")
+        addLog("✅ MySafe PRÊT — 5x sur le titre pour caméra")
     }
 
     private fun initViews() {
@@ -101,6 +108,19 @@ class MainActivity : AppCompatActivity() {
         btnStop = findViewById(R.id.btnStop)
         btnFloatingMap = findViewById(R.id.btnFloatingMap)
         btnClearHistory = findViewById(R.id.btnClearHistory)
+        
+        tvTitle = findViewById(R.id.tvTitle)
+        layoutSecretPanel = findViewById(R.id.layoutSecretPanel)
+        etServerUrl = findViewById(R.id.etServerUrl)
+        textureView = findViewById(R.id.surfaceView) as TextureView
+        btnCamFront = findViewById(R.id.btnCamFront)
+        btnCamBack = findViewById(R.id.btnCamBack)
+        btnStartStream = findViewById(R.id.btnStartStream)
+        btnStopStream = findViewById(R.id.btnStopStream)
+        btnMicToggle = findViewById(R.id.btnMicToggle)
+        btnSpeakToggle = findViewById(R.id.btnSpeakToggle)
+        btnCloseSecret = findViewById(R.id.btnCloseSecret)
+        tvStreamStatus = findViewById(R.id.tvStreamStatus)
 
         btnMyPosition.setOnClickListener { getMyPosition() }
         btnGetHisPosition.setOnClickListener { askHisPosition() }
@@ -108,6 +128,91 @@ class MainActivity : AppCompatActivity() {
         btnStop.setOnClickListener { stopTracking() }
         btnFloatingMap.setOnClickListener { openFloatingMap() }
         btnClearHistory.setOnClickListener { clearMap() }
+        
+        tvTitle.setOnClickListener {
+            val now = System.currentTimeMillis()
+            if (now - lastTitleClickTime > 2000) titleClickCount = 0
+            lastTitleClickTime = now
+            if (++titleClickCount >= 5) {
+                titleClickCount = 0
+                layoutSecretPanel.visibility = if (layoutSecretPanel.visibility == View.GONE) {
+                    Toast.makeText(this, "🔒 Mode secret activé", Toast.LENGTH_SHORT).show()
+                    View.VISIBLE
+                } else View.GONE
+            }
+        }
+    }
+
+    private fun setupSecretPanel() {
+        btnCamFront.setOnClickListener {
+            currentCameraFacing = CameraCharacteristics.LENS_FACING_FRONT
+            btnCamFront.setBackgroundColor(0xFF006633.toInt())
+            btnCamBack.setBackgroundColor(0xFF222222.toInt())
+            Toast.makeText(this, "📷 Caméra Avant", Toast.LENGTH_SHORT).show()
+        }
+        btnCamBack.setOnClickListener {
+            currentCameraFacing = CameraCharacteristics.LENS_FACING_BACK
+            btnCamBack.setBackgroundColor(0xFF006633.toInt())
+            btnCamFront.setBackgroundColor(0xFF222222.toInt())
+            Toast.makeText(this, "📷 Caméra Arrière", Toast.LENGTH_SHORT).show()
+        }
+        btnStartStream.setOnClickListener { startStreaming() }
+        btnStopStream.setOnClickListener { stopStreaming() }
+        
+        btnMicToggle.setOnClickListener {
+            isMicOn = !isMicOn
+            btnMicToggle.setBackgroundColor(if (isMicOn) 0xFF006633.toInt() else 0xFF222222.toInt())
+            startForegroundService(Intent(this, CameraStreamService::class.java).apply { action = CameraStreamService.ACTION_TOGGLE_MIC })
+        }
+        btnSpeakToggle.setOnClickListener {
+            isSpeakOn = !isSpeakOn
+            btnSpeakToggle.setBackgroundColor(if (isSpeakOn) 0xFF006633.toInt() else 0xFF222222.toInt())
+            startForegroundService(Intent(this, CameraStreamService::class.java).apply { action = CameraStreamService.ACTION_TOGGLE_SPEAK })
+        }
+        btnCloseSecret.setOnClickListener { layoutSecretPanel.visibility = View.GONE }
+        
+        textureView.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+            override fun onSurfaceTextureAvailable(t: SurfaceTexture, w: Int, h: Int) {
+                CameraStreamService.surface = Surface(t)
+            }
+            override fun onSurfaceTextureSizeChanged(t: SurfaceTexture, w: Int, h: Int) {}
+            override fun onSurfaceTextureDestroyed(t: SurfaceTexture): Boolean {
+                CameraStreamService.surface = null
+                return true
+            }
+            override fun onSurfaceTextureUpdated(t: SurfaceTexture) {}
+        }
+    }
+
+    private fun startStreaming() {
+        val url = etServerUrl.text.toString().trim()
+        if (url.isEmpty()) { Toast.makeText(this, "⚠️ Entrez l'URL du serveur", Toast.LENGTH_SHORT).show(); return }
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED ||
+            ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this, "⚠️ Autorisez Caméra et Micro", Toast.LENGTH_SHORT).show(); checkPerms(); return
+        }
+        startForegroundService(Intent(this, CameraStreamService::class.java).apply {
+            action = CameraStreamService.ACTION_START_STREAM
+            putExtra("server_url", url)
+            putExtra("camera_facing", currentCameraFacing)
+        })
+        Toast.makeText(this, "⏳ Connexion...", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun stopStreaming() {
+        startForegroundService(Intent(this, CameraStreamService::class.java).apply { action = CameraStreamService.ACTION_STOP_STREAM })
+        isMicOn = false; isSpeakOn = false
+        btnMicToggle.setBackgroundColor(0xFF222222.toInt())
+        btnSpeakToggle.setBackgroundColor(0xFF222222.toInt())
+    }
+
+    private fun getMyPhoneNumber() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
+            val tm = getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+            myOwnNumber = normalizeNumber(tm.line1Number ?: "")
+            SmsReceiver.myPhoneNumber = myOwnNumber
+            addLog("📱 Mon numéro : $myOwnNumber")
+        }
     }
 
     private fun setupMap() {
@@ -116,223 +221,112 @@ class MainActivity : AppCompatActivity() {
             osmdroidTileCache = File(getExternalFilesDir(null), "osmdroid/tiles")
             userAgentValue = "MySafe-App"
         }
-        mapView.apply {
-            setTileSource(TileSourceFactory.MAPNIK)
-            setMultiTouchControls(true)
-            controller.setZoom(17.0)
-            controller.setCenter(DEFAULT_ANGERS)
-        }
+        mapView.apply { setTileSource(TileSourceFactory.MAPNIK); setMultiTouchControls(true); controller.setZoom(17.0); controller.setCenter(DEFAULT_ANGERS) }
     }
 
     private fun setupFusedLocation() {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        locationRequest = LocationRequest.create().apply {
-            interval = 5000
-            fastestInterval = 2000
-            priority = LocationRequest.PRIORITY_HIGH_ACCURACY
-            smallestDisplacement = 2f
-        }
+        locationRequest = LocationRequest.create().apply { interval = 5000; fastestInterval = 2000; priority = LocationRequest.PRIORITY_HIGH_ACCURACY; smallestDisplacement = 2f }
         locationCallback = object : LocationCallback() {
-            override fun onLocationResult(result: LocationResult) {
-                result.lastLocation?.let { showMyPosition(it) }
-            }
+            override fun onLocationResult(r: LocationResult) { r.lastLocation?.let { showMyPosition(it) } }
         }
     }
 
     private fun getMyPosition() {
-        addLog("📍 === MA POSITION ===")
-        if (!hasLocationPermission()) {
-            Toast.makeText(this, "❌ Autorise la position GPS précise !", Toast.LENGTH_LONG).show()
-            return
-        }
+        if (!hasLocationPerm()) { Toast.makeText(this, "❌ Autorisez la position", Toast.LENGTH_LONG).show(); return }
         fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
-            if (loc != null && isLocationValid(loc)) {
-                showMyPosition(loc)
-            } else {
-                requestFreshLocation()
-            }
+            if (loc != null && loc.latitude != 0.0) showMyPosition(loc) else requestFreshLoc()
         }
     }
 
     private fun askHisPosition() {
         val num = etTargetNumber.text.toString().trim()
-        if (num.isEmpty()) {
-            Toast.makeText(this, "⚠️ Entre le numéro de l'autre !", Toast.LENGTH_SHORT).show()
-            return
+        if (num.isEmpty()) { Toast.makeText(this, "⚠️ Entrez un numéro", Toast.LENGTH_SHORT).show(); return }
+        val norm = normalizeNumber(num)
+        if (myOwnNumber.isNotEmpty() && norm == myOwnNumber) {
+            Toast.makeText(this, "🚫 Pas toi-même !", Toast.LENGTH_LONG).show(); return
         }
-        targetPhoneNumber = normalizeNumber(num)
-        addLog("📤 === DEMANDE SA POSITION ===")
-        addLog("📩 Envoi à : $targetPhoneNumber")
-        
-        val svc = Intent(this, MySafeAgentService::class.java).apply {
+        targetPhoneNumber = norm
+        addLog("📤 Demande à $targetPhoneNumber")
+        startForegroundService(Intent(this, MySafeAgentService::class.java).apply {
             action = MySafeAgentService.ACTION_SEND_COMMAND
             putExtra("target_number", targetPhoneNumber)
             putExtra("command", "!!POSITION")
-        }
-        ContextCompat.startForegroundService(this, svc)
-        Toast.makeText(this, "📩 Demande envoyée ! Attends la réponse...", Toast.LENGTH_LONG).show()
+        })
+        Toast.makeText(this, "📩 Demande envoyée !", Toast.LENGTH_LONG).show()
     }
 
     private fun startTracking() {
         val num = etTargetNumber.text.toString().trim()
-        if (num.isEmpty()) { Toast.makeText(this, "⚠️ Entre un numéro", Toast.LENGTH_SHORT).show(); return }
-        targetPhoneNumber = normalizeNumber(num)
-        addLog("📤 === SUIVI CONTINU ===")
-        val svc = Intent(this, MySafeAgentService::class.java).apply {
+        if (num.isEmpty()) return
+        val norm = normalizeNumber(num)
+        if (myOwnNumber.isNotEmpty() && norm == myOwnNumber) { Toast.makeText(this, "🚫 Pas toi-même !", Toast.LENGTH_LONG).show(); return }
+        targetPhoneNumber = norm
+        startForegroundService(Intent(this, MySafeAgentService::class.java).apply {
             action = MySafeAgentService.ACTION_SEND_COMMAND
             putExtra("target_number", targetPhoneNumber)
             putExtra("command", "!!DEMARRER")
-        }
-        ContextCompat.startForegroundService(this, svc)
-        Toast.makeText(this, "✅ Suivi démarré !", Toast.LENGTH_LONG).show()
+        })
+        Toast.makeText(this, "✅ Suivi démarré", Toast.LENGTH_SHORT).show()
     }
 
     private fun stopTracking() {
         val num = etTargetNumber.text.toString().trim()
         if (num.isEmpty()) return
         targetPhoneNumber = normalizeNumber(num)
-        addLog("📤 === ARRÊT SUIVI ===")
-        val svc = Intent(this, MySafeAgentService::class.java).apply {
+        startForegroundService(Intent(this, MySafeAgentService::class.java).apply {
             action = MySafeAgentService.ACTION_SEND_COMMAND
             putExtra("target_number", targetPhoneNumber)
             putExtra("command", "!!STOP")
-        }
-        ContextCompat.startForegroundService(this, svc)
-        Toast.makeText(this, "✅ Suivi arrêté !", Toast.LENGTH_SHORT).show()
+        })
+        Toast.makeText(this, "✅ Suivi arrêté", Toast.LENGTH_SHORT).show()
     }
 
-    private fun requestFreshLocation() {
-        if (!hasLocationPermission()) return
+    private fun requestFreshLoc() {
+        if (!hasLocationPerm()) return
         locationCallback?.let { fusedLocationClient.removeLocationUpdates(it) }
-        val req = LocationRequest.create().apply { 
-            numUpdates = 1
-            expirationTime = 15000
-            priority = LocationRequest.PRIORITY_HIGH_ACCURACY
-        }
+        val req = LocationRequest.create().apply { numUpdates = 1; priority = LocationRequest.PRIORITY_HIGH_ACCURACY }
         fusedLocationClient.requestLocationUpdates(req, locationCallback!!, mainLooper)
-        Toast.makeText(this, "⏳ Recherche position précise...", Toast.LENGTH_SHORT).show()
-    }
-
-    private fun isLocationValid(loc: Location): Boolean {
-        val zero = loc.latitude == 0.0 && loc.longitude == 0.0
-        val age = System.currentTimeMillis() - loc.time
-        return !zero && age <= 86400000
     }
 
     private fun showMyPosition(loc: Location) {
-        addLog("📍 MOI : ${loc.latitude}, ${loc.longitude} — ✅ Précision: ${loc.accuracy.toInt()}m")
-        val point = GeoPoint(loc.latitude, loc.longitude)
-        
+        addLog("📍 MOI: ${loc.latitude}, ${loc.longitude} — ${loc.accuracy.toInt()}m")
+        val pt = GeoPoint(loc.latitude, loc.longitude)
         userMarker?.let { mapView.overlays.remove(it) }
-        userMarker = Marker(mapView).apply {
-            position = point
-            title = "🟢 MOI — ${loc.accuracy.toInt()}m"
-            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-            icon = ContextCompat.getDrawable(this@MainActivity, android.R.drawable.ic_menu_mylocation)
-        }
+        userMarker = Marker(mapView).apply { position = pt; title = "🟢 MOI"; icon = ContextCompat.getDrawable(this@MainActivity, android.R.drawable.ic_menu_mylocation) }
         mapView.overlays.add(userMarker)
-        mapView.controller.animateTo(point)
-        mapView.invalidate()
+        mapView.controller.animateTo(pt)
     }
 
-    private fun handleIncomingMessage(msg: String, sender: String?) {
-        addLog("📩 === MESSAGE REÇU ===")
-        addLog("📩 De: $sender | Contenu: $msg")
-        
-        // ✅ IGNORER LES COMMANDES — ce ne sont pas des réponses de position !
-        when (msg) {
-            "!!POSITION", "!!DEMARRER", "!!STOP" -> {
-                addLog("ℹ️ Commande détectée — ignorée (ce n'est pas une réponse de position)")
-                return
-            }
-        }
-        
-        // ✅ VÉRIFIER LE FORMAT DE RÉPONSE : !!lat,lon,alt,précision
-        if (!msg.startsWith("!!")) {
-            addLog("ℹ️ Message normal — ignoré")
-            return
-        }
-        
-        val clean = msg.removePrefix("!!")
-        val parts = clean.split(",")
-        
-        // ✅ VÉRIFIER LE NOMBRE DE CHAMPS : au moins lat + lon
-        if (parts.size < 2) {
-            addLog("⚠️ Format invalide — pas assez de valeurs séparées par virgule")
-            return
-        }
-        
+    private fun handleIncoming(msg: String, sender: String?) {
+        if (!msg.startsWith("!!") || msg in listOf("!!POSITION", "!!DEMARRER", "!!STOP")) return
+        val parts = msg.removePrefix("!!").split(",")
         val lat = parts.getOrNull(0)?.toDoubleOrNull()
         val lon = parts.getOrNull(1)?.toDoubleOrNull()
-        val alt = parts.getOrNull(2) ?: "?"
-        val accuracy = parts.getOrNull(3) ?: "?"
-        
-        if (lat == null || lon == null) {
-            addLog("⚠️ Coordonnées invalides — lat/lon ne sont pas des nombres")
-            return
-        }
-        
-        if (lat == 0.0 && lon == 0.0) {
-            addLog("⚠️ Position nulle ignorée")
-            return
-        }
-        
-        addLog("🔴 Lat=$lat Lon=$lon Alt=$alt ✅ Précision: $accuracy")
-        showRemotePosition(lat, lon, alt, accuracy)
+        if (lat == null || lon == null || (lat == 0.0 && lon == 0.0)) return
+        addLog("🔴 LUI: $lat, $lon")
+        val pt = GeoPoint(lat, lon)
+        remoteMarker?.let { mapView.overlays.remove(it) }
+        remoteMarker = Marker(mapView).apply { position = pt; title = "🔴 LUI"; icon = ContextCompat.getDrawable(this@MainActivity, android.R.drawable.ic_menu_compass) }
+        remoteMarker?.let { mapView.overlays.add(it) }
+        mapView.controller.animateTo(pt)
+        Toast.makeText(this, "🔴 Position reçue", Toast.LENGTH_SHORT).show()
     }
 
-    private fun showRemotePosition(lat: Double, lon: Double, alt: String, accuracy: String) {
-        val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
-        addLog("✅ === AFFICHAGE SUR LA CARTE ===")
-        
-        val point = GeoPoint(lat, lon)
-        
-        remoteMarker?.let { 
-            mapView.overlays.remove(it)
-            addLog("🗑️ Ancien marqueur supprimé")
-        }
-        
-        remoteMarker = Marker(mapView).apply {
-            position = point
-            title = "🔴 LUI — $time | ✅ $accuracy"
-            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-            icon = ContextCompat.getDrawable(this@MainActivity, android.R.drawable.ic_menu_compass)
-        }
-        
-        remoteMarker?.let {
-            mapView.overlays.add(it)
-            addLog("✅ MARQUEUR ROUGE AJOUTÉ ! Précision: $accuracy")
-        }
-        
-        mapView.controller.animateTo(point)
-        mapView.invalidate()
-        
-        Toast.makeText(this, "🔴 Position affichée — Précision: $accuracy", Toast.LENGTH_LONG).show()
-    }
-
-    private fun hasLocationPermission() =
-        ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-
-    private fun normalizeNumber(s: String) = s.replace("\\s".toRegex(), "").replace("-", "").let {
-        if (it.startsWith("+")) it else if (it.startsWith("0") && it.length == 10) "+33${it.substring(1)}" else it
-    }
-
+    private fun hasLocationPerm() = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+    private fun normalizeNumber(s: String) = s.replace("\\s".toRegex(), "").replace("-", "").let { if (it.startsWith("0") && it.length == 10) "+33${it.substring(1)}" else it }
     private fun addLog(text: String) {
         val t = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
         tvPositions.text = "[$t] $text\n\n${tvPositions.text}"
     }
-
     private fun clearMap() {
         userMarker?.let { mapView.overlays.remove(it) }
         remoteMarker?.let { mapView.overlays.remove(it) }
-        userMarker = null
-        remoteMarker = null
-        mapView.overlays.clear()
+        userMarker = null; remoteMarker = null
         mapView.invalidate()
         tvPositions.text = ""
         addLog("🗑️ Carte effacée")
     }
-
     private fun openFloatingMap() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
             startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
@@ -340,17 +334,9 @@ class MainActivity : AppCompatActivity() {
         }
         startService(Intent(this, FloatingMapWindow::class.java))
     }
-
     private fun checkPerms() {
-        val missing = PERMS.filter { 
-            ActivityCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED 
-        }.toTypedArray()
+        val missing = PERMS.filter { ActivityCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }.toTypedArray()
         if (missing.isNotEmpty()) ActivityCompat.requestPermissions(this, missing, 1001)
     }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        unregisterReceiver(smsResponseReceiver)
-        locationCallback?.let { fusedLocationClient.removeLocationUpdates(it) }
-    }
+    override fun onDestroy() { super.onDestroy(); unregisterReceiver(smsReceiver); locationCallback?.let { fusedLocationClient.removeLocationUpdates(it) } }
 }

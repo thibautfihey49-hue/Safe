@@ -22,20 +22,20 @@ class VideoViewerActivity : AppCompatActivity() {
         tvStatus.text = "En attente du flux..."
         
         PermanentStreamService.frameListener = { bytes, w, h ->
-            if (!estActif) {
-                return@PermanentStreamService  // ✅ Bon nom : la CLASSE, pas la variable
-            }
-            runOnUiThread {
-                try {
-                    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                    if (bitmap != null) {
-                        ivVideo.setImageBitmap(bitmap)
-                        tvStatus.text = "EN DIRECT — ${w}x${h}"
+            if (estActif) {
+                runOnUiThread {
+                    try {
+                        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        if (bitmap != null) {
+                            ivVideo.setImageBitmap(bitmap)
+                            tvStatus.text = "EN DIRECT — ${w}x${h}"
+                        }
+                    } catch (e: Exception) {
+                        tvStatus.text = "Erreur image: ${e.message}"
                     }
-                } catch (e: Exception) {
-                    tvStatus.text = "Erreur image: ${e.message}"
                 }
             }
+            // Pas de return du tout = la lambda se termine normalement
         }
     }
 

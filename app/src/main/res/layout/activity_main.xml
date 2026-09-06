@@ -1,239 +1,124 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fillViewport="true"
-    android:background="#FFFFFF">
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="#FFFFFFFF">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="📍 MySafe — Controle par SMS"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginBottom="20dp"/>
+
+    <EditText
+        android:id="@+id/etNumeroCible"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="📱 Numero du telephone cible"
+        android:inputType="phone"
+        android:textSize="18sp"
+        android:padding="14dp"
+        android:background="#E8F5E9"
+        android:layout_marginBottom="16dp"/>
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp"
-        android:gravity="center_horizontal">
-
-        <TextView
-            android:id="@+id/tvTitre"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="🔒 MySafe — GPS par SMS"
-            android:textSize="22sp"
-            android:textStyle="bold"
-            android:textColor="#000000"
-            android:padding="12dp"
-            android:clickable="true"
-            android:focusable="true"
-            android:layout_marginBottom="4dp"/>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Clique 5 fois sur le titre pour devoiler les options secretes"
-            android:textSize="11sp"
-            android:textColor="#999999"
-            android:layout_marginBottom="20dp"/>
-
-        <EditText
-            android:id="@+id/etNumeroCible"
-            android:layout_width="match_parent"
-            android:layout_height="60dp"
-            android:hint="📱 Numero du telephone cible"
-            android:textSize="18sp"
-            android:inputType="phone"
-            android:textColor="#000000"
-            android:background="#E8F5E9"
-            android:padding="14dp"
-            android:layout_marginBottom="20dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            android:gravity="center"
-            android:textColor="#CCCCCC"
-            android:layout_marginBottom="16dp"/>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginBottom="10dp">
-
-            <Button
-                android:id="@+id/btnPosition"
-                android:layout_width="0dp"
-                android:layout_height="65dp"
-                android:layout_weight="1"
-                android:text="📍 POSITION"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:backgroundTint="#6A00C9"
-                android:textColor="#FFFFFF"/>
-
-            <View android:layout_width="8dp" android:layout_height="1dp"/>
-
-            <Button
-                android:id="@+id/btnSuivi"
-                android:layout_width="0dp"
-                android:layout_height="65dp"
-                android:layout_weight="1"
-                android:text="📡 SUIVI"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:backgroundTint="#009933"
-                android:textColor="#FFFFFF"/>
-        </LinearLayout>
+        android:orientation="horizontal"
+        android:layout_marginBottom="10dp">
 
         <Button
-            android:id="@+id/btnStopGps"
-            android:layout_width="match_parent"
-            android:layout_height="55dp"
-            android:text="⏹️ ARRETER GPS"
-            android:textSize="15sp"
+            android:id="@+id/btnPosition"
+            android:layout_width="0dp"
+            android:layout_height="60dp"
+            android:layout_weight="1"
+            android:text="📍 POSITION"
+            android:textSize="14sp"
             android:textStyle="bold"
-            android:backgroundTint="#CC0000"
-            android:textColor="#FFFFFF"
-            android:layout_marginBottom="20dp"/>
+            android:backgroundTint="#6A00C9"
+            android:textColor="#FFFFFF"/>
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            android:gravity="center"
-            android:textColor="#CCCCCC"
-            android:layout_marginBottom="4dp"/>
+        <View
+            android:layout_width="8dp"
+            android:layout_height="1dp"/>
 
-        <!-- ESPACE SECRET — CACHE PAR DEFAUT -->
-        <LinearLayout
-            android:id="@+id/layoutSecret"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="#FFF3E0"
-            android:padding="16dp"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="16dp"
-            android:visibility="gone">
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="🔒 ESPACE SECRET"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                android:textColor="#E65100"
-                android:gravity="center"
-                android:layout_marginBottom="4dp"/>
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="📲 SUR LE TELEPHONE CIBLE :"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:textColor="#E65100"
-                android:layout_marginBottom="8dp"/>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:layout_marginBottom="10dp">
-
-                <Button
-                    android:id="@+id/btnActiverCamera"
-                    android:layout_width="0dp"
-                    android:layout_height="60dp"
-                    android:layout_weight="1"
-                    android:text="📷 ACTIVER CAMERA"
-                    android:textSize="12sp"
-                    android:textStyle="bold"
-                    android:backgroundTint="#E65100"
-                    android:textColor="#FFFFFF"/>
-
-                <View android:layout_width="8dp" android:layout_height="1dp"/>
-
-                <Button
-                    android:id="@+id/btnActiverAudio"
-                    android:layout_width="0dp"
-                    android:layout_height="60dp"
-                    android:layout_weight="1"
-                    android:text="🔊 ACTIVER AUDIO"
-                    android:textSize="12sp"
-                    android:textStyle="bold"
-                    android:backgroundTint="#E65100"
-                    android:textColor="#FFFFFF"/>
-            </LinearLayout>
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="📱 SUR TON TELEPHONE :"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:textColor="#6A00C9"
-                android:layout_marginBottom="8dp"/>
-
-            <Button
-                android:id="@+id/btnVoirFlux"
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:text="👁️ VOIR / ENTENDRE LE FLUX"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:backgroundTint="#6A00C9"
-                android:textColor="#FFFFFF"
-                android:layout_marginBottom="10dp"/>
-
-            <Button
-                android:id="@+id/btnStopStream"
-                android:layout_width="match_parent"
-                android:layout_height="50dp"
-                android:text="⏹️ ARRETER TOUT"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:backgroundTint="#CC0000"
-                android:textColor="#FFFFFF"/>
-        </LinearLayout>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="🗺️ CARTE"
-            android:textSize="17sp"
+        <Button
+            android:id="@+id/btnSuivi"
+            android:layout_width="0dp"
+            android:layout_height="60dp"
+            android:layout_weight="1"
+            android:text="📡 SUIVI"
+            android:textSize="14sp"
             android:textStyle="bold"
-            android:textColor="#6A00C9"
-            android:layout_marginBottom="8dp"/>
-
-        <org.osmdroid.views.MapView
-            android:id="@+id/mapView"
-            android:layout_width="match_parent"
-            android:layout_height="250dp"
-            android:layout_marginBottom="12dp"/>
-
-        <TextView
-            android:id="@+id/tvStatut"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Pret — Entre un numero !"
-            android:textSize="13sp"
-            android:textColor="#006633"
-            android:gravity="center"
-            android:padding="10dp"
-            android:background="#E8F5E9"
-            android:layout_marginBottom="12dp"/>
-
-        <TextView
-            android:id="@+id/tvJournal"
-            android:layout_width="match_parent"
-            android:layout_height="100dp"
-            android:hint="Journal des evenements..."
-            android:textSize="12sp"
-            android:textColor="#000000"
-            android:background="#F5F5F5"
-            android:padding="10dp"
-            android:scrollbars="vertical"
-            android:maxLines="5"/>
-
+            android:backgroundTint="#009933"
+            android:textColor="#FFFFFF"/>
     </LinearLayout>
-</ScrollView>
+
+    <Button
+        android:id="@+id/btnStop"
+        android:layout_width="match_parent"
+        android:layout_height="55dp"
+        android:text="⏹️ ARRETER TOUT"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        android:backgroundTint="#CC0000"
+        android:textColor="#FFFFFF"
+        android:layout_marginBottom="16dp"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="📲 Commandes par SMS (envoyez ces messages au telephone cible) :"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="!!POSITION → Demander la position\n!!DEMARRER → Suivi continu\n!!STOP → Arreter tout\n!!CAMERA → Activer la caméra\n!!AUDIO → Activer le micro\n!!CAMERA,STOP → Arreter caméra/micro"
+        android:textSize="11sp"
+        android:padding="10dp"
+        android:background="#F5F5F5"
+        android:layout_marginBottom="12dp"/>
+
+    <TextView
+        android:id="@+id/tvStatut"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="✅ Systeme pret — Entre un numero !"
+        android:textSize="13sp"
+        android:padding="10dp"
+        android:background="#E8F5E9"
+        android:layout_marginBottom="12dp"/>
+
+    <org.osmdroid.views.MapView
+        android:id="@+id/mapView"
+        android:layout_width="match_parent"
+        android:layout_height="200dp"
+        android:layout_marginBottom="12dp"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="📜 Journal :"
+        android:textSize="13sp"
+        android:textStyle="bold"/>
+
+    <TextView
+        android:id="@+id/tvJournal"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:hint="Evenements..."
+        android:textSize="11sp"
+        android:padding="8dp"
+        android:background="#F9F9F9"
+        android:scrollbars="vertical"/>
+
+</LinearLayout>

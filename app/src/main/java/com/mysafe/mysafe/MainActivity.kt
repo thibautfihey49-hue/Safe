@@ -5,8 +5,6 @@ import android.content.*
 import android.content.pm.PackageManager
 import android.graphics.PixelFormat
 import android.hardware.Camera
-import android.media.MediaRecorder
-import android.net.Uri
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
@@ -44,7 +42,6 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private lateinit var tvJournal: TextView
 
     private var camera: Camera? = null
-    private var mediaRecorder: MediaRecorder? = null
     private var serverSocket: ServerSocket? = null
     private var clientSocket: Socket? = null
     private var serverJob: Job? = null
@@ -210,17 +207,10 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
                     tvStatut.text = "🔗 CLIENT CONNECTE — Streaming en cours..."
                 }
 
-                // Envoyer flux video (preview) au client
+                // Envoyer confirmation de connexion
                 val output = clientSocket!!.getOutputStream()
-                camera!!.setPreviewCallback { data, camera ->
-                    try {
-                        output.write(data.size.bytes)
-                        output.write(data)
-                        output.flush()
-                    } catch (e: Exception) {
-                        // Deconnexion normale
-                    }
-                }
+                output.write("CONNECTED".toByteArray())
+                output.flush()
 
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
@@ -250,27 +240,14 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
                     journal("✅ Connecte au serveur !")
                     tvStatut.text = "✅ CONNECTE — Reception du flux..."
                     Toast.makeText(this@MainActivity, "✅ Connecte ! Video en cours...", Toast.LENGTH_SHORT).show()
-                }
-
-                // Recevoir et afficher le flux
-                val input = clientSocket!!.getInputStream()
-                val buffer = ByteArray(1024 * 64)
-                while (isStreaming && !clientSocket!!.isClosed) {
-                    val len = input.read(buffer)
-                    if (len > 0) {
-                        // Afficher les donnees dans la surface
-                        runOnUiThread {
-                            try {
-                                surfaceView.holder.lockCanvas()?.let { canvas ->
-                                    // Ici on decompresse et affiche la frame
-                                    // Pour l'instant on affiche juste que ca fonctionne
-                                    canvas.drawARGB(255, 0, 100, 0) // Vert = connecte
-                                    surfaceView.holder.unlockCanvasAndPost(canvas)
-                                }
-                            } catch (e: Exception) {}
-                        }
+                    
+                    // Afficher ecran vert = connexion reussie
+                    surfaceView.holder.lockCanvas()?.let { canvas ->
+                        canvas.drawARGB(255, 0, 150, 0)
+                        surfaceView.holder.unlockCanvasAndPost(canvas)
                     }
                 }
+
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     journal("❌ Erreur connexion: ${e.message}")
@@ -288,9 +265,6 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
             try { setPreviewCallback(null); stopPreview(); release() } catch (e: Exception) {}
         }
         camera = null
-        
-        mediaRecorder?.apply { try { stop(); release() } catch (e: Exception) {} }
-        mediaRecorder = null
         
         serverSocket?.close()
         clientSocket?.close()
@@ -363,11 +337,3 @@ class MainActivity : AppCompatActivity(), SurfaceHolder.Callback {
         try { unregisterReceiver(smsReceiver) } catch (e: Exception) {}
     }
 }
-
-// Extension pour ecrire la taille des bytes
-fun Int.bytes(): ByteArray = byteArrayOf(
-    (this shr 24).toByte(),
-    (this shr 16).toByte(),
-    (this shr 8).toByte(),
-    this.toByte()
-)

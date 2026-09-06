@@ -133,10 +133,7 @@ class MainActivity : AppCompatActivity() {
             return false
         }
         numeroCible = normaliser(brut)
-        if (monNumero.isNotEmpty() && numeroCible == monNumero) {
-            Toast.makeText(this, "Ceci est VOTRE numero ! Entre celui de l'autre telephone.", Toast.LENGTH_LONG).show()
-            return false
-        }
+        // ✅ PLUS DE RESTRICTION — Tu peux mettre ton propre numero !
         return true
     }
 

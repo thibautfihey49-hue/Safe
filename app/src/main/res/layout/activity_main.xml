@@ -15,8 +15,8 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="MySafe GPS + Streaming WIFI"
-            android:textSize="26sp"
+            android:text="MySafe — 📹🔊 Caméra + Audio à distance"
+            android:textSize="22sp"
             android:textStyle="bold"
             android:textColor="#000000"
             android:layout_marginBottom="4dp"/>
@@ -24,101 +24,78 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="📡 Streaming caméra/audio par Wi-Fi local — 0 coût !"
-            android:textSize="14sp"
+            android:text="✅ Appairage unique — Connexion automatique depuis N'IMPORTE OÙ"
+            android:textSize="13sp"
             android:textColor="#444444"
-            android:layout_marginBottom="20dp"/>
+            android:layout_marginBottom="16dp"/>
 
-        <!-- 📍 SECTION GPS -->
+        <!-- 🔒 SECTION APPAIRAGE -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="📍 SUIVI GPS"
-            android:textSize="18sp"
+            android:text="🔒 APPAIRAGE DES 2 TÉLÉPHONES"
+            android:textSize="17sp"
             android:textStyle="bold"
             android:textColor="#6A00C9"
             android:layout_marginBottom="8dp"/>
 
-        <EditText
-            android:id="@+id/etTargetNumber"
-            android:layout_width="match_parent"
-            android:layout_height="60dp"
-            android:hint="📞 Numéro du téléphone à suivre"
-            android:textSize="18sp"
-            android:inputType="phone"
-            android:textColor="#000000"
-            android:background="#F5F5F5"
-            android:padding="12dp"
-            android:layout_marginBottom="16dp"/>
-
-        <LinearLayout
+        <TextView
+            android:id="@+id/tvMonCode"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginBottom="12dp">
+            android:text="⏳ Initialisation..."
+            android:textSize="14sp"
+            android:textColor="#006633"
+            android:padding="10dp"
+            android:background="#E8F5E9"
+            android:layout_marginBottom="8dp"
+            android:gravity="center"/>
 
-            <Button
-                android:id="@+id/btnMyPosition"
-                android:layout_width="0dp"
-                android:layout_height="60dp"
-                android:layout_weight="1"
-                android:text="🟢 MA POSITION"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:backgroundTint="#6A00C9"
-                android:textColor="#FFFFFF"/>
-
-            <View android:layout_width="12dp" android:layout_height="1dp"/>
-
-            <Button
-                android:id="@+id/btnGetHisPosition"
-                android:layout_width="0dp"
-                android:layout_height="60dp"
-                android:layout_weight="1"
-                android:text="🔴 SA POSITION"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:backgroundTint="#6A00C9"
-                android:textColor="#FFFFFF"/>
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginBottom="20dp">
-
-            <Button
-                android:id="@+id/btnDemarrer"
-                android:layout_width="0dp"
-                android:layout_height="60dp"
-                android:layout_weight="1"
-                android:text="▶️ SUIVI CONTINU"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:backgroundTint="#009933"
-                android:textColor="#FFFFFF"/>
-
-            <View android:layout_width="12dp" android:layout_height="1dp"/>
-
-            <Button
-                android:id="@+id/btnStop"
-                android:layout_width="0dp"
-                android:layout_height="60dp"
-                android:layout_weight="1"
-                android:text="⏹️ STOP"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:backgroundTint="#CC0000"
-                android:textColor="#FFFFFF"/>
-        </LinearLayout>
-
-        <!-- 📡 SECTION STREAMING WIFI -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="📡 STREAMING WIFI LOCAL"
-            android:textSize="18sp"
+            android:text="📱 Sur l'autre téléphone, entre ce code :"
+            android:textSize="13sp"
+            android:textColor="#555555"/>
+
+        <EditText
+            android:id="@+id/etCodePartenaire"
+            android:layout_width="match_parent"
+            android:layout_height="55dp"
+            android:hint="Colle le code de l'autre téléphone ici"
+            android:textSize="14sp"
+            android:background="#F5F5F5"
+            android:padding="12dp"
+            android:layout_marginBottom="8dp"/>
+
+        <Button
+            android:id="@+id/btnApparier"
+            android:layout_width="match_parent"
+            android:layout_height="55dp"
+            android:text="🔗 APPARIER LES DEUX TÉLÉPHONES"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:backgroundTint="#6A00C9"
+            android:textColor="#FFFFFF"
+            android:layout_marginBottom="4dp"/>
+
+        <TextView
+            android:id="@+id/tvAppairageStatut"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="❌ Non appairé"
+            android:textSize="13sp"
+            android:textColor="#CC0000"
+            android:gravity="center"
+            android:padding="8dp"
+            android:layout_marginBottom="16dp"/>
+
+        <!-- 📹 SECTION STREAMING CAMÉRA + AUDIO -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="📹🔊 FLUX CAMÉRA + MICRO"
+            android:textSize="17sp"
             android:textStyle="bold"
             android:textColor="#006633"
             android:layout_marginBottom="8dp"/>
@@ -126,12 +103,13 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="📱 TÉLÉPHONE CIBLE → Cliquez 'DEVENIR SERVEUR'\n📲 TÉLÉPHONE DE CONTRÔLE → Entrez l'IP + 'SE CONNECTER'"
+            android:text="📱 TÉLÉPHONE CIBLE → Cliquez 'ACTIVER LA CAMÉRA'\n📲 TON TÉLÉPHONE → Cliquez 'VOIR & ENTENDRE'"
             android:textSize="13sp"
-            android:textColor="#555555"
-            android:padding="8dp"
-            android:background="#E8F5E9"
-            android:layout_marginBottom="12dp"/>
+            android:textColor="#FFFFFF"
+            android:padding="12dp"
+            android:background="#006633"
+            android:layout_marginBottom="12dp"
+            android:gravity="center"/>
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -140,46 +118,35 @@
             android:layout_marginBottom="12dp">
 
             <Button
-                android:id="@+id/btnStartServer"
+                android:id="@+id/btnStartCamera"
                 android:layout_width="0dp"
-                android:layout_height="60dp"
+                android:layout_height="70dp"
                 android:layout_weight="1"
-                android:text="📡 DEVENIR SERVEUR"
-                android:textSize="13sp"
+                android:text="📹 ACTIVER LA CAMÉRA"
+                android:textSize="12sp"
                 android:textStyle="bold"
                 android:backgroundTint="#006633"
                 android:textColor="#FFFFFF"/>
 
-            <View android:layout_width="12dp" android:layout_height="1dp"/>
+            <View android:layout_width="10dp" android:layout_height="1dp"/>
 
             <Button
-                android:id="@+id/btnStartClient"
+                android:id="@+id/btnViewStream"
                 android:layout_width="0dp"
-                android:layout_height="60dp"
+                android:layout_height="70dp"
                 android:layout_weight="1"
-                android:text="📲 SE CONNECTER"
-                android:textSize="13sp"
+                android:text="📺 VOIR & ENTENDRE"
+                android:textSize="12sp"
                 android:textStyle="bold"
                 android:backgroundTint="#6A00C9"
                 android:textColor="#FFFFFF"/>
         </LinearLayout>
 
-        <EditText
-            android:id="@+id/etServerIp"
-            android:layout_width="match_parent"
-            android:layout_height="55dp"
-            android:hint="📱 IP du serveur (ex: 192.168.1.42)"
-            android:textSize="16sp"
-            android:textColor="#000000"
-            android:background="#F5F5F5"
-            android:padding="12dp"
-            android:layout_marginBottom="12dp"/>
-
         <Button
-            android:id="@+id/btnStopStream"
+            android:id="@+id/btnStopAll"
             android:layout_width="match_parent"
             android:layout_height="55dp"
-            android:text="⏹️ ARRÊTER LE STREAMING"
+            android:text="⏹️ ARRÊTER TOUT"
             android:textSize="15sp"
             android:textStyle="bold"
             android:backgroundTint="#CC0000"
@@ -190,7 +157,7 @@
             android:id="@+id/tvStreamStatus"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="✅ Prêt — Activez le Wi-Fi sur LES DEUX téléphones"
+            android:text="✅ Prêt — Appairez les 2 téléphones d'abord"
             android:textSize="13sp"
             android:textColor="#006633"
             android:gravity="center"
@@ -198,35 +165,58 @@
             android:background="#E8F5E9"
             android:layout_marginBottom="16dp"/>
 
-        <SurfaceView
-            android:id="@+id/surfaceView"
-            android:layout_width="match_parent"
-            android:layout_height="180dp"
-            android:background="#000000"
-            android:layout_marginBottom="16dp"/>
-
-        <!-- 📍 CARTE -->
+        <!-- 📍 SECTION GPS -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="🗺️ CARTE"
-            android:textSize="18sp"
+            android:text="📍 SUIVI GPS"
+            android:textSize="17sp"
             android:textStyle="bold"
             android:textColor="#6A00C9"
             android:layout_marginBottom="8dp"/>
 
-        <TextView
-            android:id="@+id/tvPositions"
+        <EditText
+            android:id="@+id/etTargetNumber"
             android:layout_width="match_parent"
-            android:layout_height="120dp"
-            android:hint="📋 Journal des événements..."
-            android:textSize="13sp"
+            android:layout_height="55dp"
+            android:hint="📞 Numéro du téléphone à suivre"
+            android:textSize="16sp"
+            android:inputType="phone"
             android:textColor="#000000"
             android:background="#F5F5F5"
             android:padding="12dp"
-            android:layout_marginBottom="12dp"
-            android:scrollbars="vertical"
-            android:maxLines="6"/>
+            android:layout_marginBottom="12dp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="12dp">
+
+            <Button
+                android:id="@+id/btnMyPosition"
+                android:layout_width="0dp"
+                android:layout_height="55dp"
+                android:layout_weight="1"
+                android:text="🟢 MA POSITION"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:backgroundTint="#6A00C9"
+                android:textColor="#FFFFFF"/>
+
+            <View android:layout_width="10dp" android:layout_height="1dp"/>
+
+            <Button
+                android:id="@+id/btnGetHisPosition"
+                android:layout_width="0dp"
+                android:layout_height="55dp"
+                android:layout_weight="1"
+                android:text="🔴 SA POSITION"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:backgroundTint="#6A00C9"
+                android:textColor="#FFFFFF"/>
+        </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -235,35 +225,42 @@
             android:layout_marginBottom="16dp">
 
             <Button
-                android:id="@+id/btnFloatingMap"
+                android:id="@+id/btnDemarrer"
                 android:layout_width="0dp"
                 android:layout_height="55dp"
                 android:layout_weight="1"
-                android:text="🗺️ CARTE FLOTTANTE"
+                android:text="▶️ SUIVI CONTINU"
                 android:textSize="13sp"
                 android:textStyle="bold"
-                android:backgroundTint="#6A00C9"
+                android:backgroundTint="#009933"
                 android:textColor="#FFFFFF"/>
 
-            <View android:layout_width="12dp" android:layout_height="1dp"/>
+            <View android:layout_width="10dp" android:layout_height="1dp"/>
 
             <Button
-                android:id="@+id/btnClearHistory"
+                android:id="@+id/btnStopTracking"
                 android:layout_width="0dp"
                 android:layout_height="55dp"
                 android:layout_weight="1"
-                android:text="🗑️ EFFACER"
+                android:text="⏹️ STOP"
                 android:textSize="13sp"
                 android:textStyle="bold"
-                android:backgroundTint="#444444"
+                android:backgroundTint="#CC0000"
                 android:textColor="#FFFFFF"/>
         </LinearLayout>
 
-        <org.osmdroid.views.MapView
-            android:id="@+id/mapView"
+        <TextView
+            android:id="@+id/tvPositions"
             android:layout_width="match_parent"
-            android:layout_height="300dp"
-            android:layout_marginBottom="30dp"/>
+            android:layout_height="100dp"
+            android:hint="📋 Journal des événements..."
+            android:textSize="12sp"
+            android:textColor="#000000"
+            android:background="#F5F5F5"
+            android:padding="10dp"
+            android:layout_marginBottom="12dp"
+            android:scrollbars="vertical"
+            android:maxLines="5"/>
 
     </LinearLayout>
 </ScrollView>

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#000000"
+    android:gravity="center">
+
+    <TextView
+        android:id="@+id/tvVideoStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="📹 Chargement..."
+        android:textSize="16sp"
+        android:textColor="#00FF00"
+        android:padding="12dp"
+        android:gravity="center"
+        android:background="#111111"/>
+
+    <ImageView
+        android:id="@+id/ivVideo"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:scaleType="fitCenter"
+        android:background="#000000"/>
+
+    <Button
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:text="⏹️ FERMER LE FLUX"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:backgroundTint="#CC0000"
+        android:textColor="#FFFFFF"
+        android:onClick="fermerVue"/>
+
+</LinearLayout>

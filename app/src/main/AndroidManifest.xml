@@ -1,27 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.mysafe.mysafe">
 
+    <!-- Permissions de base -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    
+    <!-- Caméra et Microphone -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     
-    <uses-feature android:name="android.hardware.camera" android:required="false" />
-    <uses-feature android:name="android.hardware.camera.front" android:required="false" />
+    <!-- Notifications Android 13+ -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="true"
@@ -29,38 +30,48 @@
         android:label="MySafe"
         android:roundIcon="@android:drawable/ic_menu_mylocation"
         android:supportsRtl="true"
-        android:theme="@style/Theme.MySafe"
-        android:usesCleartextTraffic="true">
+        android:theme="@android:style/Theme.Material.Light.NoActionBar">
 
+        <!-- Activity principale -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:screenOrientation="unspecified">
+            android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <service
-            android:name=".CameraStreamService"
-            android:exported="false"
-            android:foregroundServiceType="camera|microphone" />
-
+        <!-- Service Agent GPS/SMS → Type LOCATION uniquement -->
         <service
             android:name=".MySafeAgentService"
             android:exported="false"
-            android:foregroundServiceType="location" />
+            android:foregroundServiceType="location"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
 
+        <!-- Service Récepteur SMS -->
         <receiver
             android:name=".SmsReceiver"
-            android:exported="true"
-            android:permission="android.permission.BROADCAST_SMS">
-            <intent-filter android:priority="999">
+            android:exported="true">
+            <intent-filter>
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </receiver>
 
-        <service android:name=".FloatingMapWindow" android:exported="false" />
+        <!-- Carte flottante -->
+        <service
+            android:name=".FloatingMapWindow"
+            android:exported="false"
+            android:foregroundServiceType="specialUse" />
+
+        <!-- Service Caméra Streaming → Type CAMERA uniquement (PAS microphone) -->
+        <service
+            android:name=".CameraStreamService"
+            android:exported="false"
+            android:foregroundServiceType="camera" />
+
     </application>
+
 </manifest>

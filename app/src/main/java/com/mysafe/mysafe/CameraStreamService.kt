@@ -7,8 +7,8 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import android.widget.Toast
-import androidx.core.app.NotificationChannel
-import androidx.core.app.NotificationManager
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 
 class CameraStreamService : Service() {
     companion object {
@@ -33,16 +33,10 @@ class CameraStreamService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_START_STREAM -> startStream(
-                intent.getIntExtra("camera_facing", 1)
-            )
+            ACTION_START_STREAM -> startStream(intent.getIntExtra("camera_facing", 1))
             ACTION_STOP_STREAM -> stopStream()
-            ACTION_TOGGLE_MIC -> {
-                statusCallback?.invoke("🎤 Micro: Désactivé (simplifié)")
-            }
-            ACTION_TOGGLE_SPEAK -> {
-                statusCallback?.invoke("🔊 Son: Désactivé (simplifié)")
-            }
+            ACTION_TOGGLE_MIC -> statusCallback?.invoke("🎤 Micro: Désactivé")
+            ACTION_TOGGLE_SPEAK -> statusCallback?.invoke("🔊 Son: Désactivé")
         }
         return START_STICKY
     }
@@ -54,7 +48,6 @@ class CameraStreamService : Service() {
             isStreaming = true
             statusCallback?.invoke("📹 Caméra démarrée ✅")
             Toast.makeText(this, "📹 Streaming caméra actif", Toast.LENGTH_SHORT).show()
-            Log.d(TAG, "Streaming démarré")
         } catch (e: Exception) {
             Log.e(TAG, "Erreur démarrage: ${e.message}", e)
             statusCallback?.invoke("❌ Erreur: ${e.message}")
@@ -77,15 +70,14 @@ class CameraStreamService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        return Notification.Builder(this, CHANNEL_ID)
+        return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("MySafe — Caméra active")
-            .setContentText("Le streaming caméra est en cours...")
+            .setContentText("Streaming en cours...")
             .setSmallIcon(android.R.drawable.ic_menu_camera)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .setPriority(Notification.PRIORITY_LOW)
-            .setCategory(Notification.CATEGORY_SERVICE)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
     }
 
@@ -96,7 +88,7 @@ class CameraStreamService : Service() {
                 "Streaming Caméra",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Notifications du service de streaming caméra"
+                description = "Service de streaming caméra"
                 setShowBadge(false)
                 enableVibration(false)
             }

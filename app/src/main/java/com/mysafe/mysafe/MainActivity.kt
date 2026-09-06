@@ -67,10 +67,13 @@ class MainActivity : AppCompatActivity() {
         Manifest.permission.SEND_SMS, Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS,
         Manifest.permission.READ_PHONE_STATE, Manifest.permission.ACCESS_FINE_LOCATION,
         Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_BACKGROUND_LOCATION,
-        Manifest.permission.FOREGROUND_SERVICE, Manifest.permission.FOREGROUND_SERVICE_LOCATION,
-        Manifest.permission.SYSTEM_ALERT_WINDOW, Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO,
+        Manifest.permission.FOREGROUND_SERVICE, Manifest.permission.SYSTEM_ALERT_WINDOW,
+        Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO,
         Manifest.permission.MODIFY_AUDIO_SETTINGS, Manifest.permission.RECEIVE_BOOT_COMPLETED
-    ).apply { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS) }.toTypedArray()
+    ).apply { 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) add(Manifest.permission.FOREGROUND_SERVICE_LOCATION)
+    }.toTypedArray()
 
     private val smsReceiver = object : BroadcastReceiver() {
         override fun onReceive(c: Context?, i: Intent?) {
@@ -82,22 +85,27 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
-        initViews()
-        checkPerms()
-        getMyPhoneNumber()
-        setupMap()
-        setupFusedLocation()
-        setupStreamingPanel()
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(smsReceiver, IntentFilter("com.mysafe.mysafe.SMS_RECEIVED"), Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(smsReceiver, IntentFilter("com.mysafe.mysafe.SMS_RECEIVED"))
+        try {
+            setContentView(R.layout.activity_main)
+            initViews()
+            checkPerms()
+            getMyPhoneNumber()
+            setupMap()
+            setupFusedLocation()
+            setupStreamingPanel()
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(smsReceiver, IntentFilter("com.mysafe.mysafe.SMS_RECEIVED"), Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(smsReceiver, IntentFilter("com.mysafe.mysafe.SMS_RECEIVED"))
+            }
+            CameraStreamService.statusCallback = { runOnUiThread { tvStreamStatus.text = it } }
+            
+            addLog("✅ MySafe PRÊT — Démarré sans crash !")
+        } catch (e: Exception) {
+            Log.e("MySafe", "Erreur onCreate: ${e.message}", e)
+            Toast.makeText(this, "❌ Erreur: ${e.message}", Toast.LENGTH_LONG).show()
         }
-        CameraStreamService.statusCallback = { runOnUiThread { tvStreamStatus.text = it } }
-        
-        addLog("✅ MySafe PRÊT — Tout est visible !")
     }
 
     private fun initViews() {
@@ -129,49 +137,41 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupStreamingPanel() {
-        // Caméra Avant
         btnCamFront.setOnClickListener {
             currentCameraFacing = CameraCharacteristics.LENS_FACING_FRONT
             btnCamFront.setBackgroundColor(0xFF006633.toInt())
             btnCamBack.setBackgroundColor(0xFF444444.toInt())
-            Toast.makeText(this, "📷 Caméra Avant sélectionnée", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "📷 Caméra Avant", Toast.LENGTH_SHORT).show()
         }
         
-        // Caméra Arrière
         btnCamBack.setOnClickListener {
             currentCameraFacing = CameraCharacteristics.LENS_FACING_BACK
             btnCamBack.setBackgroundColor(0xFF006633.toInt())
             btnCamFront.setBackgroundColor(0xFF444444.toInt())
-            Toast.makeText(this, "📷 Caméra Arrière sélectionnée", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "📷 Caméra Arrière", Toast.LENGTH_SHORT).show()
         }
         
-        // Micro ON/OFF
         btnMicToggle.setOnClickListener {
             isMicOn = !isMicOn
             btnMicToggle.setBackgroundColor(if (isMicOn) 0xFF006633.toInt() else 0xFF444444.toInt())
             btnMicToggle.text = if (isMicOn) "🎤 MICRO: ON" else "🎤 MICRO: OFF"
             val intent = Intent(this, CameraStreamService::class.java)
             intent.action = CameraStreamService.ACTION_TOGGLE_MIC
-            startForegroundService(intent)
+            startForegroundServiceSafe(intent)
         }
         
-        // Son ON/OFF
         btnSpeakToggle.setOnClickListener {
             isSpeakOn = !isSpeakOn
             btnSpeakToggle.setBackgroundColor(if (isSpeakOn) 0xFF006633.toInt() else 0xFF444444.toInt())
             btnSpeakToggle.text = if (isSpeakOn) "🔊 SON: ON" else "🔊 SON: OFF"
             val intent = Intent(this, CameraStreamService::class.java)
             intent.action = CameraStreamService.ACTION_TOGGLE_SPEAK
-            startForegroundService(intent)
+            startForegroundServiceSafe(intent)
         }
         
-        // Démarrer stream
         btnStartStream.setOnClickListener { startStreaming() }
-        
-        // Arrêter stream
         btnStopStream.setOnClickListener { stopStreaming() }
         
-        // Aperçu caméra
         textureView.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
             override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
                 CameraStreamService.surface = Surface(surface)
@@ -185,6 +185,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun startForegroundServiceSafe(intent: Intent) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
+            }
+        } catch (e: Exception) {
+            Log.e("MySafe", "Erreur service: ${e.message}")
+        }
+    }
+
     private fun startStreaming() {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED ||
             ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -195,7 +207,7 @@ class MainActivity : AppCompatActivity() {
         val intent = Intent(this, CameraStreamService::class.java)
         intent.action = CameraStreamService.ACTION_START_STREAM
         intent.putExtra("camera_facing", currentCameraFacing)
-        startForegroundService(intent)
+        startForegroundServiceSafe(intent)
         tvStreamStatus.text = "⏳ Démarrage du streaming..."
         Toast.makeText(this, "📹 Streaming démarré", Toast.LENGTH_SHORT).show()
     }
@@ -203,7 +215,7 @@ class MainActivity : AppCompatActivity() {
     private fun stopStreaming() {
         val intent = Intent(this, CameraStreamService::class.java)
         intent.action = CameraStreamService.ACTION_STOP_STREAM
-        startForegroundService(intent)
+        startForegroundServiceSafe(intent)
         isMicOn = false; isSpeakOn = false
         btnMicToggle.text = "🎤 MICRO: OFF"
         btnSpeakToggle.text = "🔊 SON: OFF"
@@ -214,35 +226,51 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun getMyPhoneNumber() {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
-            val tm = getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-            myOwnNumber = normalizeNumber(tm.line1Number ?: "")
-            SmsReceiver.myPhoneNumber = myOwnNumber
-            addLog("📱 Mon numéro : $myOwnNumber")
+        try {
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
+                val tm = getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+                myOwnNumber = normalizeNumber(tm.line1Number ?: "")
+                SmsReceiver.myPhoneNumber = myOwnNumber
+                addLog("📱 Mon numéro : $myOwnNumber")
+            }
+        } catch (e: Exception) {
+            addLog("📱 Impossible de lire le numéro")
         }
     }
 
     private fun setupMap() {
-        Configuration.getInstance().apply {
-            osmdroidBasePath = File(getExternalFilesDir(null), "osmdroid")
-            osmdroidTileCache = File(getExternalFilesDir(null), "osmdroid/tiles")
-            userAgentValue = "MySafe-App"
+        try {
+            Configuration.getInstance().apply {
+                osmdroidBasePath = File(getExternalFilesDir(null), "osmdroid")
+                osmdroidTileCache = File(getExternalFilesDir(null), "osmdroid/tiles")
+                userAgentValue = "MySafe-App"
+            }
+            mapView.apply { setTileSource(TileSourceFactory.MAPNIK); setMultiTouchControls(true); controller.setZoom(17.0); controller.setCenter(DEFAULT_ANGERS) }
+        } catch (e: Exception) {
+            Toast.makeText(this, "⚠️ Carte: ${e.message}", Toast.LENGTH_SHORT).show()
         }
-        mapView.apply { setTileSource(TileSourceFactory.MAPNIK); setMultiTouchControls(true); controller.setZoom(17.0); controller.setCenter(DEFAULT_ANGERS) }
     }
 
     private fun setupFusedLocation() {
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        locationRequest = LocationRequest.create().apply { interval = 5000; fastestInterval = 2000; priority = LocationRequest.PRIORITY_HIGH_ACCURACY; smallestDisplacement = 2f }
-        locationCallback = object : LocationCallback() {
-            override fun onLocationResult(r: LocationResult) { r.lastLocation?.let { showMyPosition(it) } }
+        try {
+            fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+            locationRequest = LocationRequest.create().apply { interval = 5000; fastestInterval = 2000; priority = LocationRequest.PRIORITY_HIGH_ACCURACY; smallestDisplacement = 2f }
+            locationCallback = object : LocationCallback() {
+                override fun onLocationResult(r: LocationResult) { r.lastLocation?.let { showMyPosition(it) } }
+            }
+        } catch (e: Exception) {
+            Log.e("MySafe", "Erreur location: ${e.message}")
         }
     }
 
     private fun getMyPosition() {
         if (!hasLocationPerm()) { Toast.makeText(this, "❌ Autorisez la position", Toast.LENGTH_LONG).show(); return }
-        fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
-            if (loc != null && loc.latitude != 0.0) showMyPosition(loc) else requestFreshLoc()
+        try {
+            fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
+                if (loc != null && loc.latitude != 0.0) showMyPosition(loc) else requestFreshLoc()
+            }
+        } catch (e: Exception) {
+            Toast.makeText(this, "❌ Erreur GPS: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -259,7 +287,7 @@ class MainActivity : AppCompatActivity() {
         svc.action = MySafeAgentService.ACTION_SEND_COMMAND
         svc.putExtra("target_number", targetPhoneNumber)
         svc.putExtra("command", "!!POSITION")
-        startForegroundService(svc)
+        startForegroundServiceSafe(svc)
         Toast.makeText(this, "📩 Demande envoyée ! Attends la réponse...", Toast.LENGTH_LONG).show()
     }
 
@@ -273,9 +301,9 @@ class MainActivity : AppCompatActivity() {
         svc.action = MySafeAgentService.ACTION_SEND_COMMAND
         svc.putExtra("target_number", targetPhoneNumber)
         svc.putExtra("command", "!!DEMARRER")
-        startForegroundService(svc)
+        startForegroundServiceSafe(svc)
         addLog("✅ Suivi continu démarré vers $targetPhoneNumber")
-        Toast.makeText(this, "✅ Suivi démarré — Mises à jour automatiques", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "✅ Suivi démarré", Toast.LENGTH_SHORT).show()
     }
 
     private fun stopTracking() {
@@ -286,20 +314,24 @@ class MainActivity : AppCompatActivity() {
         svc.action = MySafeAgentService.ACTION_SEND_COMMAND
         svc.putExtra("target_number", targetPhoneNumber)
         svc.putExtra("command", "!!STOP")
-        startForegroundService(svc)
+        startForegroundServiceSafe(svc)
         addLog("⏹️ Suivi arrêté")
         Toast.makeText(this, "⏹️ Suivi arrêté", Toast.LENGTH_SHORT).show()
     }
 
     private fun requestFreshLoc() {
         if (!hasLocationPerm()) return
-        locationCallback?.let { fusedLocationClient.removeLocationUpdates(it) }
-        val req = LocationRequest.create().apply { numUpdates = 1; priority = LocationRequest.PRIORITY_HIGH_ACCURACY }
-        fusedLocationClient.requestLocationUpdates(req, locationCallback!!, mainLooper)
+        try {
+            locationCallback?.let { fusedLocationClient.removeLocationUpdates(it) }
+            val req = LocationRequest.create().apply { numUpdates = 1; priority = LocationRequest.PRIORITY_HIGH_ACCURACY }
+            fusedLocationClient.requestLocationUpdates(req, locationCallback!!, mainLooper)
+        } catch (e: Exception) {
+            Toast.makeText(this, "❌ Erreur GPS: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun showMyPosition(loc: Location) {
-        addLog("📍 MOI: ${loc.latitude}, ${loc.longitude} — Précision: ${loc.accuracy.toInt()}m")
+        addLog("📍 MOI: ${loc.latitude}, ${loc.longitude} — ${loc.accuracy.toInt()}m")
         val pt = GeoPoint(loc.latitude, loc.longitude)
         userMarker?.let { mapView.overlays.remove(it) }
         userMarker = Marker(mapView).apply { position = pt; title = "🟢 MOI"; icon = ContextCompat.getDrawable(this@MainActivity, android.R.drawable.ic_menu_mylocation) }
@@ -337,13 +369,13 @@ class MainActivity : AppCompatActivity() {
         userMarker = null; remoteMarker = null
         mapView.invalidate()
         tvPositions.text = ""
-        addLog("🗑️ Carte et historique effacés")
+        addLog("🗑️ Carte effacée")
     }
     private fun openFloatingMap() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
             val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
             startActivity(intent)
-            Toast.makeText(this, "⚠️ Autorise l'affichage par-dessus les autres apps", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "⚠️ Autorise l'affichage par-dessus", Toast.LENGTH_LONG).show()
             return
         }
         startService(Intent(this, FloatingMapWindow::class.java))
@@ -355,7 +387,7 @@ class MainActivity : AppCompatActivity() {
     }
     override fun onDestroy() {
         super.onDestroy()
-        unregisterReceiver(smsReceiver)
+        try { unregisterReceiver(smsReceiver) } catch (e: Exception) {}
         locationCallback?.let { fusedLocationClient.removeLocationUpdates(it) }
     }
 }

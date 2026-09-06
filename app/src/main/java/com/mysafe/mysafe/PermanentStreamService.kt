@@ -8,7 +8,8 @@ import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
-import android.hardware.camera2.CameraMetadata
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.params.StreamConfigurationMap
 import android.media.*
 import android.os.Build
@@ -183,7 +184,7 @@ class PermanentStreamService : Service() {
                     val read = audioRecord!!.read(buffer, 0, bufferSize)
                     if (read > 0) {
                         try {
-                            out.writeByte('A'.code)
+                            out.writeByte('A'.code.toByte())
                             out.writeInt(read)
                             out.write(buffer, 0, read)
                             out.flush()
@@ -210,9 +211,6 @@ class PermanentStreamService : Service() {
                 override fun onOpened(cam: CameraDevice) {
                     cameraDevice = cam
                     try {
-                        val surfaceView = SurfaceView(this@PermanentStreamService)
-                        val surface = surfaceView.holder.surface
-                        
                         val reader = android.media.ImageReader.newInstance(size.width, size.height, ImageFormat.JPEG, 2)
                         
                         cam.createCaptureSession(listOf(reader.surface), object : CameraCaptureSession.StateCallback() {
@@ -231,7 +229,7 @@ class PermanentStreamService : Service() {
                                     image.close()
                                     
                                     try {
-                                        out.writeByte('V'.code)
+                                        out.writeByte('V'.code.toByte())
                                         out.writeInt(bytes.size)
                                         out.writeInt(size.width)
                                         out.writeInt(size.height)

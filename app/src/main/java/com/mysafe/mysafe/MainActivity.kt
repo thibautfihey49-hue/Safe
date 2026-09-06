@@ -37,6 +37,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnGetHisPosition: Button
     private lateinit var btnDemarrer: Button
     private lateinit var btnStopTracking: Button
+    private lateinit var mapView: MapView
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationRequest: LocationRequest
@@ -45,7 +46,6 @@ class MainActivity : AppCompatActivity() {
     private var partenaire: Appareil? = null
     private var targetPhoneNumber: String = ""
     private var myOwnNumber: String = ""
-    private lateinit var mapView: MapView
     private var userMarker: Marker? = null
     private var remoteMarker: Marker? = null
     private val DEFAULT_ANGERS = GeoPoint(47.4728, -0.5416)
@@ -107,15 +107,6 @@ class MainActivity : AppCompatActivity() {
         btnDemarrer = findViewById(R.id.btnDemarrer)
         btnStopTracking = findViewById(R.id.btnStopTracking)
         mapView = findViewById(R.id.mapView)
-
-        btnApparier.setOnClickListener { apparier() }
-        btnStartCamera.setOnClickListener { demarrerCamera() }
-        btnViewStream.setOnClickListener { demarrerReception() }
-        btnStopAll.setOnClickListener { arreterTout() }
-        btnMyPosition.setOnClickListener { getMyPosition() }
-        btnGetHisPosition.setOnClickListener { askHisPosition() }
-        btnDemarrer.setOnClickListener { startTracking() }
-        btnStopTracking.setOnClickListener { stopTracking() }
     }
 
     private fun initialiserAppairage() {
@@ -165,7 +156,7 @@ class MainActivity : AppCompatActivity() {
         
         val intent = Intent(this, PermanentStreamService::class.java)
         intent.action = PermanentStreamService.ACTION_DEMARRER_CAMERA
-        startForegroundService(intent)
+        startForegroundServiceSafe(intent)
         Toast.makeText(this, "Camera activee — En attente de connexion...", Toast.LENGTH_LONG).show()
         addLog("Camera + micro actifs sur cet appareil")
     }
@@ -175,7 +166,7 @@ class MainActivity : AppCompatActivity() {
         
         val intent = Intent(this, PermanentStreamService::class.java)
         intent.action = PermanentStreamService.ACTION_DEMARRER_RECEPTION
-        startForegroundService(intent)
+        startForegroundServiceSafe(intent)
         Toast.makeText(this, "Connexion au flux de ${partenaire?.nom}...", Toast.LENGTH_LONG).show()
         addLog("Demande de flux video + audio envoyee")
     }

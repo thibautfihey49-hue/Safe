@@ -40,9 +40,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnFloatingMap: Button
     private lateinit var btnClearHistory: Button
     
-    private lateinit var tvTitle: TextView
-    private lateinit var layoutSecretPanel: LinearLayout
-    private lateinit var etServerUrl: EditText
     private lateinit var textureView: TextureView
     private lateinit var btnCamFront: Button
     private lateinit var btnCamBack: Button
@@ -50,7 +47,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnStopStream: Button
     private lateinit var btnMicToggle: Button
     private lateinit var btnSpeakToggle: Button
-    private lateinit var btnCloseSecret: Button
     private lateinit var tvStreamStatus: TextView
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
@@ -62,8 +58,6 @@ class MainActivity : AppCompatActivity() {
     private var myOwnNumber: String = ""
     private val DEFAULT_ANGERS = GeoPoint(47.4728, -0.5416)
 
-    private var titleClickCount = 0
-    private var lastTitleClickTime = 0L
     private var currentCameraFacing = CameraCharacteristics.LENS_FACING_BACK
     private var isMicOn = false
     private var isSpeakOn = false
@@ -94,12 +88,16 @@ class MainActivity : AppCompatActivity() {
         getMyPhoneNumber()
         setupMap()
         setupFusedLocation()
-        setupSecretPanel()
+        setupStreamingPanel()
         
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { registerReceiver(smsReceiver, IntentFilter("com.mysafe.mysafe.SMS_RECEIVED"), RECEIVER_NOT_EXPORTED) } else { registerReceiver(smsReceiver, IntentFilter("com.mysafe.mysafe.SMS_RECEIVED")) }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(smsReceiver, IntentFilter("com.mysafe.mysafe.SMS_RECEIVED"), Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(smsReceiver, IntentFilter("com.mysafe.mysafe.SMS_RECEIVED"))
+        }
         CameraStreamService.statusCallback = { runOnUiThread { tvStreamStatus.text = it } }
         
-        addLog("✅ MySafe PRÊT — 5x sur le titre pour caméra")
+        addLog("✅ MySafe PRÊT — Tout est visible !")
     }
 
     private fun initViews() {
@@ -113,9 +111,6 @@ class MainActivity : AppCompatActivity() {
         btnFloatingMap = findViewById(R.id.btnFloatingMap)
         btnClearHistory = findViewById(R.id.btnClearHistory)
         
-        tvTitle = findViewById(R.id.tvTitle)
-        layoutSecretPanel = findViewById(R.id.layoutSecretPanel)
-        etServerUrl = findViewById(R.id.etServerUrl)
         textureView = findViewById(R.id.surfaceView)
         btnCamFront = findViewById(R.id.btnCamFront)
         btnCamBack = findViewById(R.id.btnCamBack)
@@ -123,7 +118,6 @@ class MainActivity : AppCompatActivity() {
         btnStopStream = findViewById(R.id.btnStopStream)
         btnMicToggle = findViewById(R.id.btnMicToggle)
         btnSpeakToggle = findViewById(R.id.btnSpeakToggle)
-        btnCloseSecret = findViewById(R.id.btnCloseSecret)
         tvStreamStatus = findViewById(R.id.tvStreamStatus)
 
         btnMyPosition.setOnClickListener { getMyPosition() }
@@ -132,53 +126,52 @@ class MainActivity : AppCompatActivity() {
         btnStop.setOnClickListener { stopTracking() }
         btnFloatingMap.setOnClickListener { openFloatingMap() }
         btnClearHistory.setOnClickListener { clearMap() }
-        
-        tvTitle.setOnClickListener {
-            val now = System.currentTimeMillis()
-            if (now - lastTitleClickTime > 2000) titleClickCount = 0
-            lastTitleClickTime = now
-            if (++titleClickCount >= 5) {
-                titleClickCount = 0
-                layoutSecretPanel.visibility = if (layoutSecretPanel.visibility == View.GONE) {
-                    Toast.makeText(this, "🔒 Mode secret activé", Toast.LENGTH_SHORT).show()
-                    View.VISIBLE
-                } else View.GONE
-            }
-        }
     }
 
-    private fun setupSecretPanel() {
+    private fun setupStreamingPanel() {
+        // Caméra Avant
         btnCamFront.setOnClickListener {
             currentCameraFacing = CameraCharacteristics.LENS_FACING_FRONT
             btnCamFront.setBackgroundColor(0xFF006633.toInt())
-            btnCamBack.setBackgroundColor(0xFF222222.toInt())
-            Toast.makeText(this, "📷 Caméra Avant", Toast.LENGTH_SHORT).show()
+            btnCamBack.setBackgroundColor(0xFF444444.toInt())
+            Toast.makeText(this, "📷 Caméra Avant sélectionnée", Toast.LENGTH_SHORT).show()
         }
+        
+        // Caméra Arrière
         btnCamBack.setOnClickListener {
             currentCameraFacing = CameraCharacteristics.LENS_FACING_BACK
             btnCamBack.setBackgroundColor(0xFF006633.toInt())
-            btnCamFront.setBackgroundColor(0xFF222222.toInt())
-            Toast.makeText(this, "📷 Caméra Arrière", Toast.LENGTH_SHORT).show()
+            btnCamFront.setBackgroundColor(0xFF444444.toInt())
+            Toast.makeText(this, "📷 Caméra Arrière sélectionnée", Toast.LENGTH_SHORT).show()
         }
-        btnStartStream.setOnClickListener { startStreaming() }
-        btnStopStream.setOnClickListener { stopStreaming() }
         
+        // Micro ON/OFF
         btnMicToggle.setOnClickListener {
             isMicOn = !isMicOn
-            btnMicToggle.setBackgroundColor(if (isMicOn) 0xFF006633.toInt() else 0xFF222222.toInt())
+            btnMicToggle.setBackgroundColor(if (isMicOn) 0xFF006633.toInt() else 0xFF444444.toInt())
+            btnMicToggle.text = if (isMicOn) "🎤 MICRO: ON" else "🎤 MICRO: OFF"
             val intent = Intent(this, CameraStreamService::class.java)
             intent.action = CameraStreamService.ACTION_TOGGLE_MIC
             startForegroundService(intent)
         }
+        
+        // Son ON/OFF
         btnSpeakToggle.setOnClickListener {
             isSpeakOn = !isSpeakOn
-            btnSpeakToggle.setBackgroundColor(if (isSpeakOn) 0xFF006633.toInt() else 0xFF222222.toInt())
+            btnSpeakToggle.setBackgroundColor(if (isSpeakOn) 0xFF006633.toInt() else 0xFF444444.toInt())
+            btnSpeakToggle.text = if (isSpeakOn) "🔊 SON: ON" else "🔊 SON: OFF"
             val intent = Intent(this, CameraStreamService::class.java)
             intent.action = CameraStreamService.ACTION_TOGGLE_SPEAK
             startForegroundService(intent)
         }
-        btnCloseSecret.setOnClickListener { layoutSecretPanel.visibility = View.GONE }
         
+        // Démarrer stream
+        btnStartStream.setOnClickListener { startStreaming() }
+        
+        // Arrêter stream
+        btnStopStream.setOnClickListener { stopStreaming() }
+        
+        // Aperçu caméra
         textureView.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
             override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
                 CameraStreamService.surface = Surface(surface)
@@ -193,18 +186,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startStreaming() {
-        val url = etServerUrl.text.toString().trim()
-        if (url.isEmpty()) { Toast.makeText(this, "⚠️ Entrez l'URL du serveur", Toast.LENGTH_SHORT).show(); return }
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED ||
             ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            Toast.makeText(this, "⚠️ Autorisez Caméra et Micro", Toast.LENGTH_SHORT).show(); checkPerms(); return
+            Toast.makeText(this, "⚠️ Autorisez Caméra et Microphone", Toast.LENGTH_SHORT).show()
+            checkPerms()
+            return
         }
         val intent = Intent(this, CameraStreamService::class.java)
         intent.action = CameraStreamService.ACTION_START_STREAM
-        intent.putExtra("server_url", url)
         intent.putExtra("camera_facing", currentCameraFacing)
         startForegroundService(intent)
-        Toast.makeText(this, "⏳ Connexion...", Toast.LENGTH_SHORT).show()
+        tvStreamStatus.text = "⏳ Démarrage du streaming..."
+        Toast.makeText(this, "📹 Streaming démarré", Toast.LENGTH_SHORT).show()
     }
 
     private fun stopStreaming() {
@@ -212,8 +205,12 @@ class MainActivity : AppCompatActivity() {
         intent.action = CameraStreamService.ACTION_STOP_STREAM
         startForegroundService(intent)
         isMicOn = false; isSpeakOn = false
-        btnMicToggle.setBackgroundColor(0xFF222222.toInt())
-        btnSpeakToggle.setBackgroundColor(0xFF222222.toInt())
+        btnMicToggle.text = "🎤 MICRO: OFF"
+        btnSpeakToggle.text = "🔊 SON: OFF"
+        btnMicToggle.setBackgroundColor(0xFF444444.toInt())
+        btnSpeakToggle.setBackgroundColor(0xFF444444.toInt())
+        tvStreamStatus.text = "✅ Streaming arrêté"
+        Toast.makeText(this, "⏹️ Streaming arrêté", Toast.LENGTH_SHORT).show()
     }
 
     private fun getMyPhoneNumber() {
@@ -251,33 +248,34 @@ class MainActivity : AppCompatActivity() {
 
     private fun askHisPosition() {
         val num = etTargetNumber.text.toString().trim()
-        if (num.isEmpty()) { Toast.makeText(this, "⚠️ Entrez un numéro", Toast.LENGTH_SHORT).show(); return }
+        if (num.isEmpty()) { Toast.makeText(this, "⚠️ Entrez un numéro cible", Toast.LENGTH_SHORT).show(); return }
         val norm = normalizeNumber(num)
         if (myOwnNumber.isNotEmpty() && norm == myOwnNumber) {
-            Toast.makeText(this, "🚫 Pas toi-même !", Toast.LENGTH_LONG).show(); return
+            Toast.makeText(this, "🚫 Entrez le numéro de l'AUTRE téléphone !", Toast.LENGTH_LONG).show(); return
         }
         targetPhoneNumber = norm
-        addLog("📤 Demande à $targetPhoneNumber")
+        addLog("📤 Demande de position à $targetPhoneNumber")
         val svc = Intent(this, MySafeAgentService::class.java)
         svc.action = MySafeAgentService.ACTION_SEND_COMMAND
         svc.putExtra("target_number", targetPhoneNumber)
         svc.putExtra("command", "!!POSITION")
         startForegroundService(svc)
-        Toast.makeText(this, "📩 Demande envoyée !", Toast.LENGTH_LONG).show()
+        Toast.makeText(this, "📩 Demande envoyée ! Attends la réponse...", Toast.LENGTH_LONG).show()
     }
 
     private fun startTracking() {
         val num = etTargetNumber.text.toString().trim()
-        if (num.isEmpty()) return
+        if (num.isEmpty()) { Toast.makeText(this, "⚠️ Entrez un numéro cible d'abord !", Toast.LENGTH_SHORT).show(); return }
         val norm = normalizeNumber(num)
-        if (myOwnNumber.isNotEmpty() && norm == myOwnNumber) { Toast.makeText(this, "🚫 Pas toi-même !", Toast.LENGTH_LONG).show(); return }
+        if (myOwnNumber.isNotEmpty() && norm == myOwnNumber) { Toast.makeText(this, "🚫 Pas vous-même !", Toast.LENGTH_LONG).show(); return }
         targetPhoneNumber = norm
         val svc = Intent(this, MySafeAgentService::class.java)
         svc.action = MySafeAgentService.ACTION_SEND_COMMAND
         svc.putExtra("target_number", targetPhoneNumber)
         svc.putExtra("command", "!!DEMARRER")
         startForegroundService(svc)
-        Toast.makeText(this, "✅ Suivi démarré", Toast.LENGTH_SHORT).show()
+        addLog("✅ Suivi continu démarré vers $targetPhoneNumber")
+        Toast.makeText(this, "✅ Suivi démarré — Mises à jour automatiques", Toast.LENGTH_SHORT).show()
     }
 
     private fun stopTracking() {
@@ -289,7 +287,8 @@ class MainActivity : AppCompatActivity() {
         svc.putExtra("target_number", targetPhoneNumber)
         svc.putExtra("command", "!!STOP")
         startForegroundService(svc)
-        Toast.makeText(this, "✅ Suivi arrêté", Toast.LENGTH_SHORT).show()
+        addLog("⏹️ Suivi arrêté")
+        Toast.makeText(this, "⏹️ Suivi arrêté", Toast.LENGTH_SHORT).show()
     }
 
     private fun requestFreshLoc() {
@@ -300,7 +299,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showMyPosition(loc: Location) {
-        addLog("📍 MOI: ${loc.latitude}, ${loc.longitude} — ${loc.accuracy.toInt()}m")
+        addLog("📍 MOI: ${loc.latitude}, ${loc.longitude} — Précision: ${loc.accuracy.toInt()}m")
         val pt = GeoPoint(loc.latitude, loc.longitude)
         userMarker?.let { mapView.overlays.remove(it) }
         userMarker = Marker(mapView).apply { position = pt; title = "🟢 MOI"; icon = ContextCompat.getDrawable(this@MainActivity, android.R.drawable.ic_menu_mylocation) }
@@ -313,14 +312,17 @@ class MainActivity : AppCompatActivity() {
         val parts = msg.removePrefix("!!").split(",")
         val lat = parts.getOrNull(0)?.toDoubleOrNull()
         val lon = parts.getOrNull(1)?.toDoubleOrNull()
-        if (lat == null || lon == null || (lat == 0.0 && lon == 0.0)) return
+        if (lat == null || lon == null || (lat == 0.0 && lon == 0.0)) {
+            addLog("⚠️ Réponse invalide: $msg")
+            return
+        }
         addLog("🔴 LUI: $lat, $lon")
         val pt = GeoPoint(lat, lon)
         remoteMarker?.let { mapView.overlays.remove(it) }
         remoteMarker = Marker(mapView).apply { position = pt; title = "🔴 LUI"; icon = ContextCompat.getDrawable(this@MainActivity, android.R.drawable.ic_menu_compass) }
         remoteMarker?.let { mapView.overlays.add(it) }
         mapView.controller.animateTo(pt)
-        Toast.makeText(this, "🔴 Position reçue", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "🔴 Position reçue !", Toast.LENGTH_SHORT).show()
     }
 
     private fun hasLocationPerm() = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
@@ -335,19 +337,25 @@ class MainActivity : AppCompatActivity() {
         userMarker = null; remoteMarker = null
         mapView.invalidate()
         tvPositions.text = ""
-        addLog("🗑️ Carte effacée")
+        addLog("🗑️ Carte et historique effacés")
     }
     private fun openFloatingMap() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
             val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
             startActivity(intent)
+            Toast.makeText(this, "⚠️ Autorise l'affichage par-dessus les autres apps", Toast.LENGTH_LONG).show()
             return
         }
         startService(Intent(this, FloatingMapWindow::class.java))
+        Toast.makeText(this, "🗺️ Carte flottante ouverte", Toast.LENGTH_SHORT).show()
     }
     private fun checkPerms() {
         val missing = PERMS.filter { ActivityCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }.toTypedArray()
         if (missing.isNotEmpty()) ActivityCompat.requestPermissions(this, missing, 1001)
     }
-    override fun onDestroy() { super.onDestroy(); unregisterReceiver(smsReceiver); locationCallback?.let { fusedLocationClient.removeLocationUpdates(it) } }
+    override fun onDestroy() {
+        super.onDestroy()
+        unregisterReceiver(smsReceiver)
+        locationCallback?.let { fusedLocationClient.removeLocationUpdates(it) }
+    }
 }

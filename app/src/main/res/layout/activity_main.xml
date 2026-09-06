@@ -123,7 +123,16 @@
                 android:textStyle="bold"
                 android:textColor="#E65100"
                 android:gravity="center"
-                android:layout_marginBottom="12dp"/>
+                android:layout_marginBottom="4dp"/>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="📲 SUR LE TELEPHONE CIBLE :"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:textColor="#E65100"
+                android:layout_marginBottom="8dp"/>
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -132,12 +141,12 @@
                 android:layout_marginBottom="10dp">
 
                 <Button
-                    android:id="@+id/btnCamera"
+                    android:id="@+id/btnActiverCamera"
                     android:layout_width="0dp"
                     android:layout_height="60dp"
                     android:layout_weight="1"
-                    android:text="📷 CAMERA"
-                    android:textSize="13sp"
+                    android:text="📷 ACTIVER CAMERA"
+                    android:textSize="12sp"
                     android:textStyle="bold"
                     android:backgroundTint="#E65100"
                     android:textColor="#FFFFFF"/>
@@ -145,22 +154,42 @@
                 <View android:layout_width="8dp" android:layout_height="1dp"/>
 
                 <Button
-                    android:id="@+id/btnAudio"
+                    android:id="@+id/btnActiverAudio"
                     android:layout_width="0dp"
                     android:layout_height="60dp"
                     android:layout_weight="1"
-                    android:text="🔊 AUDIO"
-                    android:textSize="13sp"
+                    android:text="🔊 ACTIVER AUDIO"
+                    android:textSize="12sp"
                     android:textStyle="bold"
                     android:backgroundTint="#E65100"
                     android:textColor="#FFFFFF"/>
             </LinearLayout>
 
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="📱 SUR TON TELEPHONE :"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:textColor="#6A00C9"
+                android:layout_marginBottom="8dp"/>
+
+            <Button
+                android:id="@+id/btnVoirFlux"
+                android:layout_width="match_parent"
+                android:layout_height="55dp"
+                android:text="👁️ VOIR / ENTENDRE LE FLUX"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:backgroundTint="#6A00C9"
+                android:textColor="#FFFFFF"
+                android:layout_marginBottom="10dp"/>
+
             <Button
                 android:id="@+id/btnStopStream"
                 android:layout_width="match_parent"
                 android:layout_height="50dp"
-                android:text="⏹️ ARRETER STREAMING"
+                android:text="⏹️ ARRETER TOUT"
                 android:textSize="14sp"
                 android:textStyle="bold"
                 android:backgroundTint="#CC0000"

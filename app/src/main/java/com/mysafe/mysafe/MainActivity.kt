@@ -4,14 +4,17 @@ import android.Manifest
 import android.content.*
 import android.content.pm.PackageManager
 import android.graphics.SurfaceTexture
+import android.hardware.camera2.CameraCharacteristics
 import android.location.Location
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.telephony.TelephonyManager
 import android.util.Log
-import android.view.View
 import android.view.Surface
+import android.view.TextureView
+import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -51,6 +54,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvStreamStatus: TextView
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private lateinit var locationRequest: LocationRequest
     private var locationCallback: LocationCallback? = null
     private var userMarker: Marker? = null
     private var remoteMarker: Marker? = null
@@ -112,7 +116,7 @@ class MainActivity : AppCompatActivity() {
         tvTitle = findViewById(R.id.tvTitle)
         layoutSecretPanel = findViewById(R.id.layoutSecretPanel)
         etServerUrl = findViewById(R.id.etServerUrl)
-        textureView = findViewById(R.id.surfaceView) as TextureView
+        textureView = findViewById(R.id.surfaceView)
         btnCamFront = findViewById(R.id.btnCamFront)
         btnCamBack = findViewById(R.id.btnCamBack)
         btnStartStream = findViewById(R.id.btnStartStream)
@@ -162,25 +166,29 @@ class MainActivity : AppCompatActivity() {
         btnMicToggle.setOnClickListener {
             isMicOn = !isMicOn
             btnMicToggle.setBackgroundColor(if (isMicOn) 0xFF006633.toInt() else 0xFF222222.toInt())
-            startForegroundService(Intent(this, CameraStreamService::class.java).apply { action = CameraStreamService.ACTION_TOGGLE_MIC })
+            val intent = Intent(this, CameraStreamService::class.java)
+            intent.action = CameraStreamService.ACTION_TOGGLE_MIC
+            startForegroundService(intent)
         }
         btnSpeakToggle.setOnClickListener {
             isSpeakOn = !isSpeakOn
             btnSpeakToggle.setBackgroundColor(if (isSpeakOn) 0xFF006633.toInt() else 0xFF222222.toInt())
-            startForegroundService(Intent(this, CameraStreamService::class.java).apply { action = CameraStreamService.ACTION_TOGGLE_SPEAK })
+            val intent = Intent(this, CameraStreamService::class.java)
+            intent.action = CameraStreamService.ACTION_TOGGLE_SPEAK
+            startForegroundService(intent)
         }
         btnCloseSecret.setOnClickListener { layoutSecretPanel.visibility = View.GONE }
         
         textureView.surfaceTextureListener = object : TextureView.SurfaceTextureListener {
-            override fun onSurfaceTextureAvailable(t: SurfaceTexture, w: Int, h: Int) {
-                CameraStreamService.surface = Surface(t)
+            override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
+                CameraStreamService.surface = Surface(surface)
             }
-            override fun onSurfaceTextureSizeChanged(t: SurfaceTexture, w: Int, h: Int) {}
-            override fun onSurfaceTextureDestroyed(t: SurfaceTexture): Boolean {
+            override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {}
+            override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
                 CameraStreamService.surface = null
                 return true
             }
-            override fun onSurfaceTextureUpdated(t: SurfaceTexture) {}
+            override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {}
         }
     }
 
@@ -191,16 +199,18 @@ class MainActivity : AppCompatActivity() {
             ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             Toast.makeText(this, "⚠️ Autorisez Caméra et Micro", Toast.LENGTH_SHORT).show(); checkPerms(); return
         }
-        startForegroundService(Intent(this, CameraStreamService::class.java).apply {
-            action = CameraStreamService.ACTION_START_STREAM
-            putExtra("server_url", url)
-            putExtra("camera_facing", currentCameraFacing)
-        })
+        val intent = Intent(this, CameraStreamService::class.java)
+        intent.action = CameraStreamService.ACTION_START_STREAM
+        intent.putExtra("server_url", url)
+        intent.putExtra("camera_facing", currentCameraFacing)
+        startForegroundService(intent)
         Toast.makeText(this, "⏳ Connexion...", Toast.LENGTH_SHORT).show()
     }
 
     private fun stopStreaming() {
-        startForegroundService(Intent(this, CameraStreamService::class.java).apply { action = CameraStreamService.ACTION_STOP_STREAM })
+        val intent = Intent(this, CameraStreamService::class.java)
+        intent.action = CameraStreamService.ACTION_STOP_STREAM
+        startForegroundService(intent)
         isMicOn = false; isSpeakOn = false
         btnMicToggle.setBackgroundColor(0xFF222222.toInt())
         btnSpeakToggle.setBackgroundColor(0xFF222222.toInt())
@@ -248,11 +258,11 @@ class MainActivity : AppCompatActivity() {
         }
         targetPhoneNumber = norm
         addLog("📤 Demande à $targetPhoneNumber")
-        startForegroundService(Intent(this, MySafeAgentService::class.java).apply {
-            action = MySafeAgentService.ACTION_SEND_COMMAND
-            putExtra("target_number", targetPhoneNumber)
-            putExtra("command", "!!POSITION")
-        })
+        val svc = Intent(this, MySafeAgentService::class.java)
+        svc.action = MySafeAgentService.ACTION_SEND_COMMAND
+        svc.putExtra("target_number", targetPhoneNumber)
+        svc.putExtra("command", "!!POSITION")
+        startForegroundService(svc)
         Toast.makeText(this, "📩 Demande envoyée !", Toast.LENGTH_LONG).show()
     }
 
@@ -262,11 +272,11 @@ class MainActivity : AppCompatActivity() {
         val norm = normalizeNumber(num)
         if (myOwnNumber.isNotEmpty() && norm == myOwnNumber) { Toast.makeText(this, "🚫 Pas toi-même !", Toast.LENGTH_LONG).show(); return }
         targetPhoneNumber = norm
-        startForegroundService(Intent(this, MySafeAgentService::class.java).apply {
-            action = MySafeAgentService.ACTION_SEND_COMMAND
-            putExtra("target_number", targetPhoneNumber)
-            putExtra("command", "!!DEMARRER")
-        })
+        val svc = Intent(this, MySafeAgentService::class.java)
+        svc.action = MySafeAgentService.ACTION_SEND_COMMAND
+        svc.putExtra("target_number", targetPhoneNumber)
+        svc.putExtra("command", "!!DEMARRER")
+        startForegroundService(svc)
         Toast.makeText(this, "✅ Suivi démarré", Toast.LENGTH_SHORT).show()
     }
 
@@ -274,11 +284,11 @@ class MainActivity : AppCompatActivity() {
         val num = etTargetNumber.text.toString().trim()
         if (num.isEmpty()) return
         targetPhoneNumber = normalizeNumber(num)
-        startForegroundService(Intent(this, MySafeAgentService::class.java).apply {
-            action = MySafeAgentService.ACTION_SEND_COMMAND
-            putExtra("target_number", targetPhoneNumber)
-            putExtra("command", "!!STOP")
-        })
+        val svc = Intent(this, MySafeAgentService::class.java)
+        svc.action = MySafeAgentService.ACTION_SEND_COMMAND
+        svc.putExtra("target_number", targetPhoneNumber)
+        svc.putExtra("command", "!!STOP")
+        startForegroundService(svc)
         Toast.makeText(this, "✅ Suivi arrêté", Toast.LENGTH_SHORT).show()
     }
 
@@ -329,7 +339,8 @@ class MainActivity : AppCompatActivity() {
     }
     private fun openFloatingMap() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-            startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+            startActivity(intent)
             return
         }
         startService(Intent(this, FloatingMapWindow::class.java))
